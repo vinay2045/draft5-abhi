@@ -3,68 +3,199 @@
  * Handles CRUD operations for carousel items directly with base64 encoded images
  */
 
-// DOM elements
-const carouselItemsTable = document.getElementById('carouselItemsTable');
-const carouselForm = document.getElementById('carouselForm');
-const carouselModal = document.getElementById('carouselModal');
-const reorderModal = document.getElementById('reorderModal');
-const confirmModal = document.getElementById('confirmModal');
-const modalTitle = document.getElementById('modalTitle');
-const saveCarouselBtn = document.getElementById('saveCarouselBtn');
-const addCarouselBtn = document.getElementById('addCarouselBtn');
-const reorderBtn = document.getElementById('reorderBtn');
-const saveOrderBtn = document.getElementById('saveOrderBtn');
-const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-const sortableItems = document.getElementById('sortableItems');
-const dragDropArea = document.getElementById('dragDropArea');
-const imageUpload = document.getElementById('imageUpload');
-const imagePreview = document.getElementById('imagePreview');
-const imageSizeControls = document.getElementById('imageSizeControls');
-
 // Global variables
 let carouselItems = [];
 let currentItemId = null;
 let originalImageData = null;
 let deleteItemId = null;
 
-// Base64 encoded placeholder image for when images are missing
+// DOM elements - initialized in DOMContentLoaded
+let carouselModal;
+let modalTitle;
+let carouselForm;
+let imagePreview;
+let imageSizeControls;
+let addCarouselBtn;
+let saveCarouselBtn;
+let reorderBtn;
+let saveOrderBtn;
+let confirmDeleteBtn;
+let imageUpload;
+let carouselItemsList;
+let reorderList;
+let carouselItemsTable;
+let sortableItems;
+let confirmModal;
+let reorderModal;
+let dragDropArea;
+
+// Placeholder image for when no image is provided
 const placeholderImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMThweCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzk5OSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+SW1hZ2UgUGxhY2Vob2xkZXI8L3RleHQ+PC9zdmc+';
 
-// Initialize the page
+// Wait for DOM to load
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded - initializing carousel admin');
+    
+    // Initialize DOM element references
+    carouselModal = document.getElementById('carouselModal');
+    modalTitle = document.getElementById('modalTitle');
+    carouselForm = document.getElementById('carouselForm');
+    imagePreview = document.getElementById('imagePreview');
+    imageSizeControls = document.getElementById('imageSizeControls');
+    addCarouselBtn = document.getElementById('addCarouselBtn');
+    saveCarouselBtn = document.getElementById('saveCarouselBtn');
+    reorderBtn = document.getElementById('reorderBtn');
+    saveOrderBtn = document.getElementById('saveOrderBtn');
+    confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    imageUpload = document.getElementById('imageUpload');
+    carouselItemsList = document.getElementById('carouselItems');
+    reorderList = document.getElementById('reorderList');
+    carouselItemsTable = document.getElementById('carouselItemsTable');
+    sortableItems = document.getElementById('sortableItems');
+    confirmModal = document.getElementById('confirmModal');
+    reorderModal = document.getElementById('reorderModal');
+    dragDropArea = document.getElementById('dragDropArea');
+    
+    console.log('DOM elements initialized:', {
+        carouselModal: !!carouselModal,
+        modalTitle: !!modalTitle,
+        carouselForm: !!carouselForm,
+        imagePreview: !!imagePreview,
+        imageSizeControls: !!imageSizeControls,
+        addCarouselBtn: !!addCarouselBtn,
+        saveCarouselBtn: !!saveCarouselBtn,
+        reorderBtn: !!reorderBtn,
+        saveOrderBtn: !!saveOrderBtn,
+        confirmDeleteBtn: !!confirmDeleteBtn,
+        imageUpload: !!imageUpload,
+        carouselItemsList: !!carouselItemsList,
+        reorderList: !!reorderList,
+        carouselItemsTable: !!carouselItemsTable,
+        sortableItems: !!sortableItems,
+        confirmModal: !!confirmModal,
+        reorderModal: !!reorderModal,
+        dragDropArea: !!dragDropArea
+    });
+    
+    // Set up event listeners
+    addEventListeners();
+    
     // Load carousel items
     loadCarouselItems();
     
-    // Add event listeners
-    addEventListeners();
-    
     // Setup drag & drop for image upload
     setupDragDrop();
+    
+    // Add other event listeners
+    // Close modal buttons
+    document.querySelectorAll('.close-modal').forEach(button => {
+        button.addEventListener('click', () => {
+            hideModal(carouselModal);
+            
+            // Hide other modals if they exist
+            const reorderModal = document.getElementById('reorderModal');
+            const confirmModal = document.getElementById('confirmModal');
+            
+            if (reorderModal) hideModal(reorderModal);
+            if (confirmModal) hideModal(confirmModal);
+        });
+    });
+    
+    // Reorder button
+    if (reorderBtn) {
+        reorderBtn.addEventListener('click', showReorderModal);
+    }
+    
+    // Confirm delete button
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', deleteCarouselItem);
+    }
+    
+    // Image upload
+    if (imageUpload) {
+        imageUpload.addEventListener('change', handleImageUpload);
+    }
+    
+    // Set up form reset when modal is closed
+    if (carouselModal) {
+        carouselModal.addEventListener('click', function(e) {
+            if (e.target === carouselModal || e.target.classList.contains('modal-backdrop')) {
+                hideModal(carouselModal);
+            }
+        });
+    }
+    
+    // Reset image button
+    const resetImageBtn = document.getElementById('resetImageBtn');
+    if (resetImageBtn) {
+        resetImageBtn.addEventListener('click', resetImage);
+    }
+    
+    console.log('Carousel admin initialization complete');
 });
 
 // Load carousel items from API
 async function loadCarouselItems() {
     try {
         showTableLoading();
+        console.log('Loading carousel items from API...');
         
-        const response = await apiRequest('/carousel/all', 'GET');
-        carouselItems = response || [];
+        const response = await window.AdminAuth.apiRequest('/api/carousel/all', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('Carousel items loaded:', response);
+        
+        if (Array.isArray(response)) {
+            carouselItems = response; 
+        } else {
+            console.warn('Invalid carousel items response:', response);
+            carouselItems = [];
+        }
         
         renderCarouselItemsTable();
     } catch (error) {
         console.error('Error loading carousel items:', error);
-        showToast('Failed to load carousel items', 'error');
+        showToast(`Failed to load: ${error.message || 'Unknown error'}`, 'error');
         renderEmptyTable('Failed to load carousel items. Please try again.');
     }
 }
 
 // Render carousel items table
 function renderCarouselItemsTable() {
-    if (!carouselItemsTable) return;
+    if (!carouselItemsTable) {
+        console.error('Carousel items table not found');
+        return;
+    }
     
-    if (carouselItems.length === 0) {
+    if (!carouselItems || carouselItems.length === 0) {
         renderEmptyTable('No carousel items found. Add your first carousel item by clicking the "Add New Item" button.');
         return;
+    }
+    
+    // Sort items by order
+    carouselItems.sort((a, b) => a.order - b.order);
+    
+    // Add a summary row at the top of the table
+    const tableHeader = document.querySelector('#carouselItemsTable thead');
+    if (tableHeader) {
+        // Remove any existing summary
+        const existingSummary = document.querySelector('.carousel-summary');
+        if (existingSummary) {
+            existingSummary.remove();
+        }
+        
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'mb-2 text-right carousel-summary';
+        summaryDiv.innerHTML = `<strong>Total items: ${carouselItems.length}</strong> (Order ranges from 0 to ${carouselItems.length - 1})`;
+        
+        // Insert before the table
+        if (tableHeader.parentNode) {
+            tableHeader.parentNode.insertBefore(summaryDiv, tableHeader);
+        }
     }
     
     let tableBody = '';
@@ -145,64 +276,67 @@ function renderEmptyTable(message) {
     `;
 }
 
-// Add event listeners
+// Initialize event listeners
 function addEventListeners() {
-    // Add new item button
+    console.log('Setting up event listeners');
+    
+    // Add carousel button
     if (addCarouselBtn) {
+        console.log('Found add carousel button');
         addCarouselBtn.addEventListener('click', () => showCarouselModal());
+    } else {
+        console.error('Add carousel button not found');
     }
     
-    // Save carousel item button
+    // Save carousel button - with debug logging
     if (saveCarouselBtn) {
-        saveCarouselBtn.addEventListener('click', saveCarouselItem);
-    }
-    
-    // Reorder button
-    if (reorderBtn) {
-        reorderBtn.addEventListener('click', showReorderModal);
+        console.log('Found save carousel button');
+        
+        // Remove any existing event listeners first
+        const newSaveBtn = saveCarouselBtn.cloneNode(true);
+        saveCarouselBtn.parentNode.replaceChild(newSaveBtn, saveCarouselBtn);
+        saveCarouselBtn = newSaveBtn;
+        
+        // Add the new event listener with explicit preventDefault
+        saveCarouselBtn.addEventListener('click', function(e) {
+            console.log('Save button clicked');
+            e.preventDefault();
+            saveCarouselItem(e);
+        });
+        } else {
+        console.error('Save carousel button not found');
     }
     
     // Save order button
     if (saveOrderBtn) {
+        console.log('Found save order button');
         saveOrderBtn.addEventListener('click', saveItemsOrder);
+        } else {
+        console.error('Save order button not found');
     }
     
-    // Confirm delete button
-    if (confirmDeleteBtn) {
-        confirmDeleteBtn.addEventListener('click', deleteCarouselItem);
-    }
-    
-    // Close modal buttons
-    document.querySelectorAll('.close-modal').forEach(button => {
-        button.addEventListener('click', () => {
-            hideModal(carouselModal);
-            hideModal(reorderModal);
-            hideModal(confirmModal);
+    // Add form preview listener
+    const imageUrlInput = document.getElementById('imageUrl');
+    if (imageUrlInput) {
+        console.log('Found image URL input, adding change listener');
+        imageUrlInput.addEventListener('change', function() {
+            console.log('Image URL changed');
+            displayImage(this.value, 0, 0);
         });
-    });
-    
-    // Image upload
-    if (imageUpload) {
-        imageUpload.addEventListener('change', handleImageUpload);
+    } else {
+        console.error('Image URL input not found');
     }
     
-    // Set up form reset when modal is closed
-    if (carouselModal) {
-        carouselModal.addEventListener('click', function(e) {
-            if (e.target === carouselModal || e.target.classList.contains('modal-backdrop')) {
-                hideModal(carouselModal);
-            }
-        });
+    // Image resize listener
+    const resizeBtn = document.getElementById('resizeImageBtn');
+    if (resizeBtn) {
+        console.log('Found resize button');
+        resizeBtn.addEventListener('click', resizeImage);
+    } else {
+        console.error('Resize button not found');
     }
     
-    // Image resize buttons
-    if (document.getElementById('resizeImageBtn')) {
-        document.getElementById('resizeImageBtn').addEventListener('click', resizeImage);
-    }
-    
-    if (document.getElementById('resetImageBtn')) {
-        document.getElementById('resetImageBtn').addEventListener('click', resetImage);
-    }
+    console.log('Event listeners setup complete');
 }
 
 // Setup drag & drop functionality
@@ -354,39 +488,101 @@ function resetImage() {
 
 // Show carousel modal for add/edit
 function showCarouselModal(itemId = null) {
+    console.log('Opening carousel modal', itemId ? 'Edit mode' : 'Add mode');
+    
+    if (!modalTitle) {
+        console.error('Modal title element not found');
+        return;
+    }
+    
     modalTitle.textContent = itemId ? 'Edit Carousel Item' : 'Add New Item';
     currentItemId = itemId;
     
     // Reset form
-    carouselForm.reset();
-    imagePreview.innerHTML = '';
-    imageSizeControls.style.display = 'none';
+    if (carouselForm) {
+        carouselForm.reset();
+    } else {
+        console.error('Carousel form not found');
+    }
+    
+    if (imagePreview) {
+        imagePreview.innerHTML = '';
+    } else {
+        console.error('Image preview element not found');
+    }
+    
+    if (imageSizeControls) {
+        imageSizeControls.style.display = 'none';
+    } else {
+        console.error('Image size controls not found');
+    }
+    
     originalImageData = null;
     
-    // Hidden fields
-    document.getElementById('carouselId').value = itemId || '';
+    // Check for required form fields
+    const titleInput = document.getElementById('title');
+    const headingInput = document.getElementById('heading');
+    const subheadingInput = document.getElementById('subheading');
+    const tagsInput = document.getElementById('tags');
+    const orderInput = document.getElementById('order');
+    const activeInput = document.getElementById('active');
+    const imageUrlInput = document.getElementById('imageUrl');
+    const carouselIdInput = document.getElementById('carouselId');
+    
+    // Get total number of slides
+    const totalSlides = carouselItems.length;
+    
+    // Log which elements we found
+    console.log('Form elements found:', {
+        titleInput: !!titleInput,
+        headingInput: !!headingInput,
+        subheadingInput: !!subheadingInput,
+        tagsInput: !!tagsInput,
+        orderInput: !!orderInput,
+        activeInput: !!activeInput,
+        imageUrlInput: !!imageUrlInput,
+        carouselIdInput: !!carouselIdInput,
+        totalSlides
+    });
+    
+    // Set hidden ID field
+    if (carouselIdInput) {
+        carouselIdInput.value = itemId || '';
+    }
+    
+    // Update the order field label to show total slides
+    const orderLabel = document.querySelector('label[for="order"]');
+    if (orderLabel) {
+        orderLabel.textContent = `Order (0-${totalSlides}${itemId ? '' : ' - new item'})`;
+    }
     
     if (itemId) {
         // Edit mode - populate form with item data
         const item = carouselItems.find(item => item._id === itemId);
+        console.log('Editing item:', item);
+        
         if (item) {
-            document.getElementById('title').value = item.title || '';
-            document.getElementById('heading').value = item.heading || '';
-            document.getElementById('subheading').value = item.subheading || '';
-            document.getElementById('tags').value = item.tags?.join(', ') || '';
-            document.getElementById('order').value = item.order || 0;
-            document.getElementById('active').checked = item.active ?? true;
-            document.getElementById('imageUrl').value = item.image || '';
+            if (titleInput) titleInput.value = item.title || '';
+            if (headingInput) headingInput.value = item.heading || '';
+            if (subheadingInput) subheadingInput.value = item.subheading || '';
+            if (tagsInput) tagsInput.value = item.tags?.join(', ') || '';
+            if (orderInput) orderInput.value = item.order || 0;
+            if (activeInput) activeInput.checked = item.active ?? true;
+            if (imageUrlInput) imageUrlInput.value = item.image || '';
             
             // Show image preview if available
-            if (item.image) {
+            if (item.image && imagePreview) {
                 displayImage(item.image, 0, 0); // Width and height will be updated when image loads
                 
                 // Load image to get dimensions
                 const img = new Image();
                 img.onload = function() {
-                    document.getElementById('imageWidth').value = img.width;
-                    document.getElementById('imageHeight').value = img.height;
+                    if (document.getElementById('imageWidth')) {
+                        document.getElementById('imageWidth').value = img.width;
+                    }
+                    if (document.getElementById('imageHeight')) {
+                        document.getElementById('imageHeight').value = img.height;
+                    }
                     
                     originalImageData = {
                         src: item.image,
@@ -400,27 +596,64 @@ function showCarouselModal(itemId = null) {
                 };
                 img.src = item.image;
             }
+        } else {
+            console.error('Item not found:', itemId);
         }
     } else {
         // Set placeholder image for new items
-        document.getElementById('imageUrl').value = placeholderImage;
-        displayImage(placeholderImage, 320, 180);
+        if (imageUrlInput) {
+            imageUrlInput.value = placeholderImage;
+        }
+        if (imagePreview) {
+            displayImage(placeholderImage, 320, 180);
+        }
+        
+        // For new items, suggest the last position (end of carousel)
+        if (orderInput) {
+            orderInput.value = totalSlides;
+        }
     }
     
     showModal(carouselModal);
 }
 
 // Save carousel item (create or update)
-async function saveCarouselItem() {
+async function saveCarouselItem(e) {
+    if (e) e.preventDefault(); // Prevent form submission
+    
+    console.log('saveCarouselItem function called');
+    
     try {
+        // Get form elements
+        const titleInput = document.getElementById('title');
+        const headingInput = document.getElementById('heading');
+        const subheadingInput = document.getElementById('subheading');
+        const imageUrlInput = document.getElementById('imageUrl');
+        const tagsInput = document.getElementById('tags');
+        const orderInput = document.getElementById('order');
+        const activeInput = document.getElementById('active');
+        
+        if (!titleInput || !headingInput || !subheadingInput) {
+            console.error('Required form elements not found');
+            showToast('Form elements not found. Please refresh the page.', 'error');
+            return;
+        }
+        
         // Validate form
-        const title = document.getElementById('title').value.trim();
-        const heading = document.getElementById('heading').value.trim();
-        const subheading = document.getElementById('subheading').value.trim();
-        const image = document.getElementById('imageUrl').value.trim() || placeholderImage;
-        const tagsInput = document.getElementById('tags').value.trim();
-        const order = parseInt(document.getElementById('order').value) || 0;
-        const active = document.getElementById('active').checked;
+        const title = titleInput.value.trim();
+        const heading = headingInput.value.trim();
+        const subheading = subheadingInput.value.trim();
+        const image = imageUrlInput?.value.trim() || placeholderImage;
+        const tagsInputValue = tagsInput?.value.trim() || '';
+        const order = parseInt(orderInput?.value || '0') || 0;
+        const active = activeInput?.checked || false;
+        
+        console.log('Form values:', {
+            title, heading, subheading, 
+            image: image.substring(0, 30) + '...', // Don't log the entire base64 string
+            tagsInputValue, order, active,
+            currentItemId
+        });
         
         if (!title || !heading || !subheading) {
             showToast('Please fill in all required fields', 'error');
@@ -428,7 +661,7 @@ async function saveCarouselItem() {
         }
         
         // Parse tags
-        const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()) : [];
+        const tags = tagsInputValue ? tagsInputValue.split(',').map(tag => tag.trim()) : [];
         
         // Prepare data
         const data = {
@@ -441,40 +674,167 @@ async function saveCarouselItem() {
             active
         };
         
+        console.log(`Preparing to ${currentItemId ? 'update' : 'create'} carousel item`);
+        
         // Determine if creating or updating
-        const method = currentItemId ? 'PUT' : 'POST';
-        const endpoint = currentItemId 
-            ? `/carousel/${currentItemId}` 
-            : '/carousel';
+        let endpoint, method;
+        if (currentItemId) {
+            endpoint = `/api/carousel/${currentItemId}`;
+            method = 'PUT';
+            console.log(`Updating carousel item ${currentItemId}`);
+        } else {
+            endpoint = '/api/carousel';
+            method = 'POST';
+            console.log('Creating new carousel item');
+        }
+        
+        // Sanitize data to ensure clean JSON
+        const sanitizedData = {
+            title: data.title,
+            heading: data.heading,
+            subheading: data.subheading,
+            image: data.image,
+            tags: Array.isArray(data.tags) ? data.tags : [],
+            order: typeof data.order === 'number' ? data.order : parseInt(data.order) || 0,
+            active: Boolean(data.active)
+        };
+        
+        // Log size for debugging
+        const imageLength = sanitizedData.image ? sanitizedData.image.length : 0;
+        console.log(`Image data length: ${imageLength} characters`);
+        
+        // Log all data fields except image (too large)
+        console.log('Sending data:', {
+            title: sanitizedData.title,
+            heading: sanitizedData.heading,
+            subheading: sanitizedData.subheading,
+            imageLength,
+            tags: sanitizedData.tags,
+            order: sanitizedData.order,
+            active: sanitizedData.active
+        });
         
         // Save to API
-        const response = await apiRequest(endpoint, method, data);
-        
-        // Hide modal and reload data
-        hideModal(carouselModal);
-        showToast(currentItemId ? 'Carousel item updated successfully' : 'New carousel item added successfully', 'success');
-        
-        // Reload carousel items
-        await loadCarouselItems();
+        try {
+            console.log(`Sending ${method} request to ${endpoint}`);
+            
+            // Don't stringify the data here, let the API request function handle it
+            const response = await window.AdminAuth.apiRequest(endpoint, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: sanitizedData // Send the object directly, not JSON string
+            });
+            
+            console.log('API response:', response);
+            
+            // Hide modal and reload data
+            hideModal(carouselModal);
+            showToast(currentItemId ? 'Carousel item updated successfully' : 'New carousel item added successfully', 'success');
+            
+            // Reload carousel items
+            await loadCarouselItems();
+            
+        } catch (apiError) {
+            console.error('API Error:', apiError);
+            showToast(`API Error: ${apiError.message || 'Unknown error'}`, 'error');
+            throw apiError;
+        }
         
     } catch (error) {
         console.error('Error saving carousel item:', error);
-        showToast('Failed to save carousel item', 'error');
+        showToast(`Failed to save: ${error.message || 'Unknown error'}`, 'error');
     }
 }
 
 // Edit carousel item
 function editCarouselItem(itemId) {
+    if (!itemId) {
+        console.error('No item ID provided for editing');
+        return;
+    }
+    
+    console.log('Editing carousel item:', itemId);
     showCarouselModal(itemId);
 }
 
 // Preview carousel item
 function previewCarouselItem(itemId) {
-    const item = carouselItems.find(item => item._id === itemId);
-    if (!item) return;
+    if (!itemId) {
+        console.error('No item ID provided for preview');
+        return;
+    }
     
-    // Open preview in new tab/window
-    window.open('/', '_blank');
+    console.log('Previewing carousel item:', itemId);
+    
+    const item = carouselItems.find(item => item._id === itemId);
+    if (!item) {
+        showToast('Item not found', 'error');
+        return;
+    }
+    
+    // Show a modal with preview
+    const previewHTML = `
+        <div class="carousel-preview">
+            <h3>${item.title}</h3>
+            <div class="preview-image">
+                <img src="${item.image || placeholderImage}" alt="${item.title}" 
+                     onerror="this.src='${placeholderImage}'" style="max-width: 100%;">
+            </div>
+            <div class="preview-content mt-3">
+                <h4>${item.heading}</h4>
+                <p>${item.subheading}</p>
+                <p><strong>Order:</strong> ${item.order}</p>
+                <p><strong>Status:</strong> ${item.active ? 'Active' : 'Inactive'}</p>
+                <p><strong>Tags:</strong> ${item.tags.join(', ') || 'None'}</p>
+            </div>
+        </div>
+    `;
+    
+    // Use a custom modal for preview
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content';
+    modalContent.innerHTML = `
+        <div class="modal-header">
+            <h5 class="modal-title">Carousel Item Preview</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            ${previewHTML}
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary close-modal">Close</button>
+            <button type="button" class="btn btn-primary edit-preview" data-id="${item._id}">Edit Item</button>
+        </div>
+    `;
+    
+    // Get or create preview modal
+    let previewModal = document.getElementById('previewModal');
+    if (!previewModal) {
+        previewModal = document.createElement('div');
+        previewModal.id = 'previewModal';
+        previewModal.className = 'modal fade';
+        previewModal.innerHTML = '<div class="modal-dialog modal-lg"><div class="modal-content"></div></div>';
+        document.body.appendChild(previewModal);
+    }
+    
+    previewModal.querySelector('.modal-content').replaceWith(modalContent);
+    
+    // Add event listeners
+    previewModal.querySelector('.close-modal').addEventListener('click', () => {
+        hideModal(previewModal);
+    });
+    
+    previewModal.querySelector('.edit-preview').addEventListener('click', () => {
+        hideModal(previewModal);
+        showCarouselModal(item._id);
+    });
+    
+    // Show the modal
+    showModal(previewModal);
 }
 
 // Show delete confirmation modal
@@ -485,22 +845,40 @@ function showDeleteConfirmation(itemId) {
 
 // Delete carousel item
 async function deleteCarouselItem() {
-    if (!deleteItemId) return;
+    if (!deleteItemId) {
+        console.error('No delete item ID set');
+        return;
+    }
     
     try {
-        await apiRequest(`/carousel/${deleteItemId}`, 'DELETE');
+        console.log('Deleting carousel item:', deleteItemId);
         
-        hideModal(confirmModal);
-        showToast('Carousel item deleted successfully', 'success');
+        const response = await window.AdminAuth.apiRequest(`/api/carousel/${deleteItemId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
         
+        console.log('Delete response:', response);
+        
+        // Hide confirmation modal
+        const confirmModal = document.getElementById('confirmModal');
+        if (confirmModal) {
+            hideModal(confirmModal);
+        }
+        
+            showToast('Carousel item deleted successfully', 'success');
+            
         // Reload carousel items
         await loadCarouselItems();
         
     } catch (error) {
         console.error('Error deleting carousel item:', error);
-        showToast('Failed to delete carousel item', 'error');
+        showToast(`Failed to delete: ${error.message || 'Unknown error'}`, 'error');
     }
     
+    // Reset delete item ID
     deleteItemId = null;
 }
 
@@ -555,36 +933,59 @@ function showReorderModal() {
     showModal(reorderModal);
 }
 
-// Save items order
+// Save reordered carousel items
 async function saveItemsOrder() {
     try {
-        const listItems = sortableItems.querySelectorAll('.sortable-item');
+        if (!sortableItems) {
+            console.error('Sortable items element not found');
+            return;
+        }
         
-        if (listItems.length === 0) {
+        // Get all items
+        const itemElements = sortableItems.querySelectorAll('li');
+        if (itemElements.length === 0) {
             showToast('No items to reorder', 'error');
             return;
         }
         
-        // Get ordered item IDs
-        const items = Array.from(listItems).map((item, index) => {
+        // Create ordered array of item ids
+        const items = Array.from(itemElements).map((element, index) => {
             return {
-                id: item.dataset.id,
+                id: element.getAttribute('data-id'),
                 order: index
             };
         });
         
-        // Send to API
-        await apiRequest('/carousel/order/update', 'PUT', { items });
+        console.log('Saving carousel order:', items);
         
-        hideModal(reorderModal);
-        showToast('Carousel items reordered successfully', 'success');
-        
-        // Reload carousel items
-        await loadCarouselItems();
+        // Save to API
+        try {
+            const response = await window.AdminAuth.apiRequest('/api/carousel-order', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ items })
+            });
+            
+            console.log('Order update response:', response);
+            
+            // Hide modal and reload data
+            const reorderModal = document.getElementById('reorderModal');
+            if (reorderModal) hideModal(reorderModal);
+            
+            showToast('Carousel order updated successfully', 'success');
+            
+            // Reload carousel items
+            await loadCarouselItems();
+        } catch (apiError) {
+            console.error('API error when saving order:', apiError);
+            showToast(`API Error: ${apiError.message || 'Unknown error'}`, 'error');
+        }
         
     } catch (error) {
-        console.error('Error reordering items:', error);
-        showToast('Failed to save new order', 'error');
+        console.error('Error saving carousel items order:', error);
+        showToast(`Failed to update order: ${error.message || 'Unknown error'}`, 'error');
     }
 }
 

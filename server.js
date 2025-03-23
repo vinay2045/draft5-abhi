@@ -8,6 +8,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { uploadMiddleware, handleFileUpload } = require('./middleware/upload');
 const fs = require('fs');
+const PORT = process.env.PORT || 7777;
 // const http = require('http');
 // We don't need Socket.io anymore
 // const socketIo = require('socket.io');
@@ -16,6 +17,30 @@ const fs = require('fs');
 dotenv.config();
 
 const app = express();
+
+// Add MongoDB connection validation
+mongoose.connection.once('open', () => {
+  console.log('MongoDB database connection established successfully');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.error('MongoDB disconnected');
+});
+
+// Check if MongoDB connection is active before proceeding with requests
+app.use((req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    console.error('MongoDB connection is not open. Current state:', mongoose.connection.readyState);
+    if (req.path.startsWith('/api/')) {
+      return res.status(500).json({ error: 'Database connection is not established' });
+    }
+  }
+  next();
+});
 
 // Security middlewares
 app.use(helmet({
@@ -54,8 +79,36 @@ const submissionsLimiter = rateLimit({
 
 // Middlewares
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Increase JSON payload limit to handle large base64 images
+app.use(express.json({ 
+  limit: '50mb',
+  verify: (req, res, buf, encoding) => {
+    if (req.method === 'PUT' || req.method === 'POST') {
+      console.log(`Received ${req.method} request to ${req.originalUrl}`);
+      
+      try {
+        // Try to test-parse the JSON
+        const body = JSON.parse(buf.toString());
+        console.log('JSON payload successfully parsed');
+      } catch(e) {
+        console.error('JSON parse error:', e.message);
+        console.error('Raw request start:', buf.toString().substring(0, 100) + '...');
+        res.status(400).json({ message: 'Invalid JSON: ' + e.message });
+        throw new Error('Invalid JSON');
+      }
+    }
+  }
+}));
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
+
+// Add error handler for body-parser JSON errors
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('JSON Parsing Error:', err.message);
+    return res.status(400).json({ message: 'Invalid JSON: ' + err.message });
+  }
+  next(err);
+});
 
 // File upload middleware
 app.use(uploadMiddleware);
@@ -86,7 +139,7 @@ app.use('/admin', express.static(path.join(__dirname, 'admin'), {
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/carousel', require('./server/routes/carouselRoutes'));
+// app.use('/api/carousel', require('./server/routes/carouselRoutes')); // Commented out to use direct route below
 app.use('/api/domestic-tours', require('./routes/domesticTours'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/submissions', require('./routes/submissions'));
@@ -94,6 +147,461 @@ app.use('/api/content', require('./routes/pageContent'));
 
 // Add direct handlers for API endpoints needed by the frontend
 // This avoids the need to modify the frontend code
+
+// Direct API endpoints for carousel
+// Get all carousel items
+app.get('/api/carousel/all', async (req, res) => {
+  try {
+    console.log('Fetching all carousel items...');
+    
+    try {
+      // Use direct MongoDB find operation
+      const items = await mongoose.connection.collection('carousels')
+        .find({})
+        .sort({ order: 1 })
+        .toArray();
+      
+      console.log(`Found ${items.length} carousel items`);
+      res.json(items);
+    } catch (dbError) {
+      console.error('Database error fetching carousel items:', dbError);
+      res.status(500).json({ 
+        message: 'Database error when fetching carousel items',
+        error: dbError.message,
+        stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+      });
+    }
+  } catch (error) {
+    console.error('Unexpected error fetching carousel items:', error);
+    res.status(500).json({ 
+      message: 'Failed to fetch carousel items',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get active carousel items
+app.get('/api/carousel/active', async (req, res) => {
+  try {
+    console.log('Fetching active carousel items...');
+    
+    try {
+      // Use direct MongoDB find operation with active filter
+      const items = await mongoose.connection.collection('carousels')
+        .find({ active: true })
+        .sort({ order: 1 })
+        .toArray();
+      
+      console.log(`Found ${items.length} active carousel items`);
+      res.json(items);
+    } catch (dbError) {
+      console.error('Database error fetching active carousel items:', dbError);
+      res.status(500).json({ 
+        message: 'Database error when fetching active carousel items',
+        error: dbError.message,
+        stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+      });
+    }
+  } catch (error) {
+    console.error('Unexpected error fetching active carousel items:', error);
+    res.status(500).json({ 
+      message: 'Failed to fetch active carousel items',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get a single carousel item
+app.get('/api/carousel/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log(`Fetching carousel item with ID: ${id}`);
+    
+    // Validate ID format
+    let objectId;
+    try {
+      objectId = new mongoose.Types.ObjectId(id);
+    } catch (error) {
+      console.error(`Invalid carousel item ID format: ${id}`);
+      return res.status(400).json({ message: 'Invalid ID format' });
+    }
+    
+    try {
+      // Use direct MongoDB findOne operation
+      const item = await mongoose.connection.collection('carousels').findOne({ _id: objectId });
+      
+      if (!item) {
+        console.log(`Carousel item not found with ID: ${id}`);
+        return res.status(404).json({ message: 'Carousel item not found' });
+      }
+      
+      console.log(`Successfully retrieved carousel item with ID: ${id}`);
+      res.json(item);
+    } catch (dbError) {
+      console.error(`Database error fetching carousel item ${id}:`, dbError);
+      res.status(500).json({ 
+        message: 'Database error when fetching carousel item',
+        error: dbError.message,
+        stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+      });
+    }
+  } catch (error) {
+    console.error('Unexpected error fetching carousel item:', error);
+    res.status(500).json({ 
+      message: 'Failed to fetch carousel item',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Create a new carousel item
+app.post('/api/carousel', async (req, res) => {
+  try {
+    const CarouselModel = require('./server/models/carouselModel');
+    const { title, heading, subheading, image, tags, order, active } = req.body;
+    
+    console.log('Received carousel item data:', { 
+      title, 
+      heading, 
+      subheading, 
+      imageLength: image ? image.length : 0,
+      tagsProvided: Array.isArray(tags),
+      orderProvided: order !== undefined,
+      activeProvided: active !== undefined
+    });
+    
+    // Validate required fields
+    if (!title || !heading || !subheading || !image) {
+      console.log('Missing required fields:', { 
+        title: !!title, 
+        heading: !!heading, 
+        subheading: !!subheading, 
+        image: !!image 
+      });
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+    
+    try {
+      // Direct MongoDB insertion approach to bypass Mongoose validation issues
+      const newCarouselItem = {
+        _id: new mongoose.Types.ObjectId(),
+        title: title,
+        heading: heading,
+        subheading: subheading,
+        image: image,
+        tags: Array.isArray(tags) ? tags : [],
+        order: typeof order === 'number' ? order : 0,
+        active: typeof active === 'boolean' ? active : true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      console.log('Attempting direct MongoDB insertion for carousel item:', {
+        _id: newCarouselItem._id,
+        title: newCarouselItem.title,
+        heading: newCarouselItem.heading,
+        subheading: newCarouselItem.subheading
+      });
+      
+      // Insert directly using the MongoDB driver
+      const insertResult = await mongoose.connection.collection('carousels').insertOne(newCarouselItem);
+      
+      console.log('Direct MongoDB insert result:', insertResult);
+      
+      if (!insertResult.acknowledged) {
+        console.error('Insert operation not acknowledged');
+        return res.status(500).json({ message: 'Failed to create carousel item' });
+      }
+      
+      console.log('Carousel item created successfully with ID:', newCarouselItem._id);
+      
+      // Return the created item
+      res.status(201).json(newCarouselItem);
+    } catch (dbError) {
+      console.error('Error saving new carousel item:', dbError);
+      if (dbError.name === 'ValidationError') {
+        return res.status(400).json({ 
+          message: 'Validation error during save', 
+          details: Object.values(dbError.errors).map(err => err.message) 
+        });
+      }
+      if (dbError.name === 'MongoServerError' && dbError.code === 11000) {
+        return res.status(400).json({ message: 'Duplicate key error' });
+      }
+      
+      return res.status(500).json({ 
+        message: 'Database operation failed', 
+        error: dbError.message,
+        stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+      });
+    }
+  } catch (error) {
+    console.error('Error creating carousel item:', error);
+    
+    // Return more detailed error message
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        details: Object.values(error.errors).map(err => err.message) 
+      });
+    }
+    if (error.name === 'MongoServerError' && error.code === 11000) {
+      return res.status(400).json({ message: 'Duplicate key error' });
+    }
+    
+    res.status(500).json({ 
+      message: 'Failed to create carousel item', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Update a carousel item
+app.put('/api/carousel/:id', async (req, res) => {
+  try {
+    const { title, heading, subheading, image, tags, order, active } = req.body;
+    const id = req.params.id;
+    
+    console.log(`PUT /api/carousel/${id} - Processing valid request`);
+    console.log('Request body fields:', {
+      hasTitle: !!title,
+      hasHeading: !!heading, 
+      hasSubheading: !!subheading,
+      imageLength: image ? image.length : 0,
+      hasTags: Array.isArray(tags),
+      orderType: typeof order,
+      activeType: typeof active
+    });
+    
+    // Validate required fields
+    if (!title || !heading || !subheading || !image) {
+      console.log(`PUT /api/carousel/${id} - Missing required fields`);
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+    
+    // Validate ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log(`PUT /api/carousel/${id} - Invalid ID format`);
+      return res.status(400).json({ message: 'Invalid ID format' });
+    }
+    
+    const objectId = new mongoose.Types.ObjectId(id);
+    const collection = mongoose.connection.collection('carousels');
+    
+    // First check if item exists
+    const existingItem = await collection.findOne({ _id: objectId });
+    if (!existingItem) {
+      console.log(`PUT /api/carousel/${id} - Item not found`);
+      return res.status(404).json({ message: 'Carousel item not found' });
+    }
+    
+    // Prepare update document
+    const updateData = {
+      title,
+      heading,
+      subheading,
+      image,
+      tags: Array.isArray(tags) ? tags : (existingItem.tags || []),
+      order: typeof order === 'number' ? order : (existingItem.order || 0),
+      active: typeof active === 'boolean' ? active : (existingItem.active !== undefined ? existingItem.active : true),
+      updatedAt: new Date()
+    };
+    
+    console.log(`PUT /api/carousel/${id} - Updating item`);
+    
+    // Update item
+    await collection.updateOne({ _id: objectId }, { $set: updateData });
+    
+    // Get updated item 
+    const updatedItem = await collection.findOne({ _id: objectId });
+    
+    console.log(`PUT /api/carousel/${id} - Success`);
+    return res.json(updatedItem);
+    
+  } catch (error) {
+    console.error(`PUT /api/carousel/${req.params.id} - Error:`, error);
+    
+    return res.status(500).json({
+      message: 'Failed to update carousel item',
+      error: error.message
+    });
+  }
+});
+
+// Delete a carousel item
+app.delete('/api/carousel/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log(`Attempting to delete carousel item with ID: ${id}`);
+    
+    // Validate ID format
+    let objectId;
+    try {
+      objectId = new mongoose.Types.ObjectId(id);
+    } catch (error) {
+      console.error(`Invalid carousel item ID format: ${id}`);
+      return res.status(400).json({ message: 'Invalid ID format' });
+    }
+    
+    try {
+      // Use direct MongoDB deleteOne operation
+      const deleteResult = await mongoose.connection.collection('carousels')
+        .deleteOne({ _id: objectId });
+      
+      console.log('Delete operation result:', deleteResult);
+      
+      if (!deleteResult.acknowledged) {
+        return res.status(500).json({ message: 'Delete operation not acknowledged' });
+      }
+      
+      if (deleteResult.deletedCount === 0) {
+        console.log(`Carousel item not found with ID: ${id}`);
+        return res.status(404).json({ message: 'Carousel item not found' });
+      }
+
+      console.log(`Carousel item deleted successfully: ${id}`);
+      res.json({ message: 'Carousel item deleted successfully' });
+    } catch (dbError) {
+      console.error(`Database error deleting carousel item ${id}:`, dbError);
+      res.status(500).json({ 
+        message: 'Database error when deleting carousel item',
+        error: dbError.message,
+        stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+      });
+    }
+  } catch (error) {
+    console.error('Unexpected error deleting carousel item:', error);
+    res.status(500).json({ 
+      message: 'Failed to delete carousel item', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Put the more specific route before the generic route with parameter
+// Update all carousel items order
+app.put('/api/carousel-order', async (req, res) => {
+  try {
+    const { items } = req.body;
+    
+    console.log('Received request to update carousel items order:', { itemCount: items?.length || 0 });
+    
+    if (!items || !Array.isArray(items)) {
+      console.error('Invalid items array provided for reordering');
+      return res.status(400).json({ message: 'Invalid items array' });
+    }
+
+    try {
+      // Use direct MongoDB operations to update each item's order
+      const bulkOperations = items.map((item, index) => {
+        if (!item.id) {
+          console.warn(`Item at index ${index} has no ID, skipping`);
+          return null; // Will be filtered out below
+        }
+        
+        let objectId;
+        try {
+          objectId = new mongoose.Types.ObjectId(item.id);
+        } catch (error) {
+          console.warn(`Invalid item ID: ${item.id}, skipping`);
+          return null; // Will be filtered out below
+        }
+        
+        return {
+          updateOne: {
+            filter: { _id: objectId },
+            update: { 
+              $set: { 
+                order: index,
+                updatedAt: new Date()
+              }
+            }
+          }
+        };
+      }).filter(operation => operation !== null);
+      
+      console.log(`Executing bulk operation for ${bulkOperations.length} items`);
+      
+      // Execute bulk update operation
+      if (bulkOperations.length > 0) {
+        const bulkResult = await mongoose.connection.collection('carousels')
+          .bulkWrite(bulkOperations);
+        
+        console.log('Bulk update result:', bulkResult);
+      } else {
+        console.log('No valid items to update');
+      }
+      
+      // Fetch updated items
+      const updatedItems = await mongoose.connection.collection('carousels')
+        .find({})
+        .sort({ order: 1 })
+        .toArray();
+      
+      console.log(`Returning ${updatedItems.length} updated carousel items`);
+      res.json(updatedItems);
+    } catch (dbError) {
+      console.error('Database error updating carousel order:', dbError);
+      res.status(500).json({ 
+        message: 'Database error updating carousel order',
+        error: dbError.message,
+        stack: process.env.NODE_ENV === 'development' ? dbError.stack : undefined
+      });
+    }
+  } catch (error) {
+    console.error('Unexpected error updating carousel items order:', error);
+    res.status(500).json({ 
+      message: 'Failed to update carousel items order',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Direct endpoint for static carousel data
+app.get('/api/carousel', (req, res) => {
+  // Serve static carousel data that matches what's in frontend/js/script.js
+  const staticCarouselItems = [
+    {
+      image: '../images/photo-1739606944848-97662c0430f0 (1).avif',
+      title: 'Manali & Kashmir - ₹16,999',
+      heading: 'Explore the Paradise ',
+      subheading: 'Experience the serene beauty of north India',
+      tags: ['Mountains', 'Nature', 'Adventure']
+    },
+    {
+      image: '../images/photo-1590001155093-a3c66ab0c3ff.avif',
+      title: 'Maldives - ₹65,999',
+      heading: 'Discover Hidden Gems',
+      subheading: 'Sun-kissed beaches await you',
+      tags: ['Beach', 'Luxury', 'Island']
+    },
+    {
+      image: '../images/premium_photo-1661929242720-140374d97c94.avif',
+      title: 'Thailand - ₹31,999',
+      heading: 'Explore Exotic Thailand',
+      subheading: 'Experience vibrant culture and pristine beaches',
+      tags: ['Culture', 'Beach', 'Adventure']
+    },
+    {
+      image: '../images/photo-1510414842594-a61c69b5ae57.avif',
+      title: 'Dubai - ₹49,999',
+      heading: 'Luxury in the Desert',
+      subheading: 'Experience modern marvels and traditional charm',
+      tags: ['Luxury', 'Shopping', 'Adventure']
+    }
+  ];
+  
+  res.json({
+    success: true,
+    data: staticCarouselItems
+  });
+});
 
 // Stats endpoint
 app.get('/api/stats', async (req, res) => {
@@ -1018,11 +1526,18 @@ app.get('/api/export/submissions', async (req, res) => {
 // Connect to MongoDB with improved options
 const connectDB = async () => {
   try {
+    console.log('Attempting to connect to MongoDB...');
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
       socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+    
+    // Only initialize carousel items after successful connection
+    initializeCarouselItems();
+    
+    // Start server ONLY after successful database connection
+    startServer();
   } catch (err) {
     console.error('MongoDB connection error:', err);
     // Wait 5 seconds before retrying
@@ -1031,6 +1546,110 @@ const connectDB = async () => {
   }
 };
 
+// Function to start the server
+function startServer() {
+  try {
+    const server = app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`Port ${PORT} is busy, trying ${PORT + 1}...`);
+        // Try the next port
+        const server2 = app.listen(PORT + 1, () => {
+          console.log(`Server running on port ${PORT + 1}`);
+        });
+        server2.on('error', (err2) => {
+          console.error('Failed to start server on alternative port:', err2);
+          process.exit(1);
+        });
+      } else {
+        console.error('Server error:', err);
+      }
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+}
+
+// Function to initialize carousel items with static data from script.js
+function initializeCarouselItems() {
+  try {
+    // Check if we have a Carousel model
+    let CarouselModel;
+    try {
+      CarouselModel = require('./server/models/carouselModel');
+    } catch (err) {
+      console.error('Error loading carousel model:', err);
+      try {
+        CarouselModel = mongoose.model('Carousel');
+      } catch (modelErr) {
+        console.error('Could not find Carousel model:', modelErr);
+        return;
+      }
+    }
+    
+    // Force reset of carousel items for testing
+    console.log('Clearing existing carousel items to reset them');
+    CarouselModel.deleteMany({})
+      .then(() => {
+        // Static carousel items matching the ones in script.js
+        const staticItems = [
+          {
+            image: '../images/photo-1739606944848-97662c0430f0 (1).avif',
+            title: 'Manali & Kashmir - ₹16,999',
+            heading: 'Explore the Paradise ',
+            subheading: 'Experience the serene beauty of north India',
+            tags: ['Mountains', 'Nature', 'Adventure'],
+            order: 0,
+            active: true
+          },
+          {
+            image: '../images/photo-1590001155093-a3c66ab0c3ff.avif',
+            title: 'Maldives - ₹65,999',
+            heading: 'Discover Hidden Gems',
+            subheading: 'Sun-kissed beaches await you',
+            tags: ['Beach', 'Luxury', 'Island'],
+            order: 1,
+            active: true
+          },
+          {
+            image: '../images/premium_photo-1661929242720-140374d97c94.avif',
+            title: 'Thailand - ₹31,999',
+            heading: 'Explore Exotic Thailand',
+            subheading: 'Experience vibrant culture and pristine beaches',
+            tags: ['Culture', 'Beach', 'Adventure'],
+            order: 2,
+            active: true
+          },
+          {
+            image: '../images/photo-1510414842594-a61c69b5ae57.avif',
+            title: 'Dubai - ₹49,999',
+            heading: 'Luxury in the Desert',
+            subheading: 'Experience modern marvels and traditional charm',
+            tags: ['Luxury', 'Shopping', 'Adventure'],
+            order: 3,
+            active: true
+          }
+        ];
+        
+        // Insert the static items
+        return CarouselModel.insertMany(staticItems);
+      })
+      .then(result => {
+        console.log(`Initialized carousel with ${result.length} static items`);
+      })
+      .catch(error => {
+        console.error('Error inserting carousel items:', error);
+      });
+  } catch (error) {
+    console.error('Error in carousel initialization:', error);
+  }
+}
+
+// Start the connection process - only call this once
 connectDB();
 
 // Error handling middleware
@@ -1042,45 +1661,25 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Process-wide error handlers to prevent crashes
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION! Shutting down...', err);
-  console.error(err.name, err.message, err.stack);
-  // Give the server time to finish current requests before exiting
-  process.exit(1);
+// Global error handlers for uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('UNCAUGHT EXCEPTION! 💥 Shutting down...');
+    console.error(error.name, error.message);
+    console.error(error.stack);
+    process.exit(1);
 });
 
-process.on('unhandledRejection', (err) => {
-  console.error('UNHANDLED REJECTION!', err);
-  console.error(err.name, err.message, err.stack);
-  // Don't exit the process, just log the error
+process.on('unhandledRejection', (error) => {
+    console.error('UNHANDLED REJECTION! 💥 Shutting down...');
+    console.error(error.name, error.message);
+    console.error(error.stack);
+    // Don't exit the process, just log the error
 });
 
 process.on('SIGTERM', () => {
   console.log('SIGTERM RECEIVED. Shutting down gracefully');
   process.exit(0);
 });
-
-const PORT = parseInt(process.env.PORT || 7777, 10);
-
-// Create server with port fallback mechanism
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
-  .on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      const fallbackPort = PORT + 1;
-      // Make sure fallback port is valid (below 65536)
-      if (fallbackPort < 65536) {
-        console.log(`Port ${PORT} is busy, trying ${fallbackPort}...`);
-        // Try the next port
-        app.listen(fallbackPort, () => console.log(`Server running on port ${fallbackPort}`));
-      } else {
-        console.error('Cannot find available port. Please manually specify a different port.');
-        process.exit(1);
-      }
-    } else {
-      console.error('Server error:', err);
-    }
-  }); 
 
 // Serve static files for production
 if (process.env.NODE_ENV === 'production') {

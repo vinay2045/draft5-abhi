@@ -192,10 +192,7 @@ function setupHeroCarousel() {
     
     // Function to show a specific slide
     function showSlide(n) {
-        const slides = document.querySelectorAll('.hero-carousel-slide');
-        const indicators = document.querySelectorAll('.hero-carousel-indicator');
-        
-        if (slides.length === 0) return;
+        if (!slides || slides.length === 0) return;
         
         // Wrap around if we go beyond bounds
         if (n > slides.length) {
@@ -206,7 +203,7 @@ function setupHeroCarousel() {
             slideIndex = n;
         }
         
-        console.log(`Showing slide ${slideIndex} of ${localCarouselItems.length}`);
+        console.log(`Showing slide ${slideIndex} of ${slides.length}`);
         
         // Hide all slides
         slides.forEach(slide => {
@@ -214,14 +211,14 @@ function setupHeroCarousel() {
         });
         
         // Remove active class from all indicators
-        indicators.forEach(indicator => {
+        dots.forEach(indicator => {
             indicator.classList.remove('active');
         });
         
         // Show the current slide and activate its indicator
         slides[slideIndex - 1].style.display = 'block';
-        if (indicators[slideIndex - 1]) {
-            indicators[slideIndex - 1].classList.add('active');
+        if (dots[slideIndex - 1]) {
+            dots[slideIndex - 1].classList.add('active');
         }
     }
     
@@ -232,16 +229,12 @@ function setupHeroCarousel() {
         
         // Set the slide interval
         slideInterval = setInterval(function() {
-            slideIndex++;
+            // Calculate next slide index (not incrementing slideIndex directly)
+            const nextIndex = (slideIndex % slides.length) + 1;
             
-            // Ensure we loop back to the first slide after the last one
-            if (slideIndex >= slides.length) {
-                slideIndex = 0;
-            }
-            
-            showSlide(slideIndex);
-            console.log('Auto-advancing to slide:', slideIndex + 1);
-        }, 1000); // Use 2000ms (2 seconds) for better user experience
+            showSlide(nextIndex);
+            console.log('Auto-advancing to slide:', nextIndex);
+        }, 5000); // 5 seconds between slides
         
         console.log('Slideshow interval started with ID:', slideInterval);
     }
@@ -1375,25 +1368,24 @@ const heroSections = {
 function loadCarouselData() {
     console.log("Loading carousel data from API");
     
-    fetch('/api/carousel')
-        .then(response => response.json())
+    fetch('/api/carousel/active')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             console.log("Carousel data received:", data);
-            if (data.success && data.data && data.data.length > 0) {
-                // Format the data to match the expected structure
-                const carouselItems = data.data.map(item => ({
-                    image: item.image,
-                    title: item.title,
-                    heading: item.heading,
-                    subheading: item.subheading,
-                    tags: item.tags || []
-                }));
-                
-                // Update the carousel with API data
-                updateHeroCarousel(carouselItems);
+            if (data && Array.isArray(data) && data.length > 0) {
+                // Data is directly an array of carousel items
+                updateHeroCarousel(data);
+            } else if (data && data.success && data.data && data.data.length > 0) {
+                // Data is wrapped in a success object
+                updateHeroCarousel(data.data);
             } else {
                 console.log("No carousel items returned from API, using local data");
-                // Keep using the current carousel setup
+                // Keep using the current carousel setup with static data
             }
         })
         .catch(error => {
@@ -1489,18 +1481,34 @@ function initializeCarouselBehavior() {
     
     // Function to show a specific slide
     function showSlide(n) {
-        // Reset slideIndex if out of bounds
-        if (n >= slides.length) slideIndex = 0;
-        if (n < 0) slideIndex = slides.length - 1;
-        else slideIndex = n;
+        if (!slides || slides.length === 0) return;
         
-        // Hide all slides and remove active class from indicators
-        slides.forEach(slide => slide.style.display = 'none');
-        indicators.forEach(dot => dot.classList.remove('active'));
+        // Wrap around if we go beyond bounds
+        if (n > slides.length) {
+            slideIndex = 1;
+        } else if (n < 1) {
+            slideIndex = slides.length;
+        } else {
+            slideIndex = n;
+        }
         
-        // Show current slide and set active indicator
-        slides[slideIndex].style.display = 'block';
-        indicators[slideIndex].classList.add('active');
+        console.log(`Showing slide ${slideIndex} of ${slides.length}`);
+        
+        // Hide all slides
+        slides.forEach(slide => {
+            slide.style.display = 'none';
+        });
+        
+        // Remove active class from all indicators
+        indicators.forEach(indicator => {
+            indicator.classList.remove('active');
+        });
+        
+        // Show the current slide and activate its indicator
+        slides[slideIndex - 1].style.display = 'block';
+        if (indicators[slideIndex - 1]) {
+            indicators[slideIndex - 1].classList.add('active');
+        }
     }
     
     // Function to move to next/prev slide
@@ -1512,7 +1520,7 @@ function initializeCarouselBehavior() {
     // Add click events to indicators
     indicators.forEach((indicator, index) => {
         indicator.addEventListener('click', () => {
-            showSlide(index);
+            showSlide(index + 1);
             resetSlideshow();
         });
     });

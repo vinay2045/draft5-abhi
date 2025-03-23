@@ -166,17 +166,16 @@ async function apiRequest(endpoint, method = 'GET', data = null, customHeaders =
             endpoint = '/' + endpoint;
         }
         
-        // Determine if this is an admin endpoint
-        const isAdminEndpoint = endpoint.startsWith('/admin/');
-        
-        // Build URL - for admin endpoints, use direct path without any prefixes
-        let fullUrl;
-        if (isAdminEndpoint) {
-            fullUrl = `${window.location.origin}${endpoint}`;
-        } else {
-            // For API endpoints, use the /api prefix
-            fullUrl = `${window.location.origin}/api${endpoint}`;
+        // Add /api prefix if it's not already there
+        let apiEndpoint = endpoint;
+        if (!apiEndpoint.startsWith('/api/')) {
+            apiEndpoint = '/api' + apiEndpoint;
         }
+        
+        // Build URL with the API prefix
+        const fullUrl = `${window.location.origin}${apiEndpoint}`;
+        
+        console.log(`Making ${requestMethod} request to: ${fullUrl}`);
         
         // Prepare request options
         const options = {
@@ -202,9 +201,22 @@ async function apiRequest(endpoint, method = 'GET', data = null, customHeaders =
                 options.headers['Content-Type'] = 'application/json';
             }
             
-            // If it's an image data URL, don't stringify it again
+            // Handle JSON stringification properly
             if (options.headers['Content-Type'] === 'application/json') {
-                options.body = JSON.stringify(requestData);
+                // Check if requestData is already a string (pre-stringified JSON)
+                if (typeof requestData === 'string') {
+                    try {
+                        // Make sure it's valid JSON by parsing and re-stringifying
+                        const parsed = JSON.parse(requestData);
+                        options.body = JSON.stringify(parsed);
+                    } catch (e) {
+                        console.error('Invalid JSON string provided:', e);
+                        throw new Error('Invalid JSON string provided: ' + e.message);
+                    }
+                } else {
+                    // Normal object that needs to be stringified
+                    options.body = JSON.stringify(requestData);
+                }
             } else {
                 // For FormData or other types
                 options.body = requestData;
