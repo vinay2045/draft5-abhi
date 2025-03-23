@@ -231,6 +231,77 @@
             margin-top: 5px;
             white-space: pre-line;
         }
+        
+        /* Improve pagination styling */
+        .pagination-button {
+            min-width: 36px;
+            height: 36px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            color: #333;
+            margin: 0 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .pagination-button:hover {
+            background-color: #f8f9fa;
+            border-color: #adb5bd;
+        }
+        
+        .pagination-button.active {
+            background-color: #3f51b5;
+            color: #fff;
+            border-color: #3f51b5;
+        }
+        
+        .pagination-button.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .pagination-button i {
+            font-size: 18px;
+        }
+        
+        .pagination-ellipsis {
+            margin: 0 4px;
+            align-self: flex-end;
+        }
+        
+        .items-count {
+            font-size: 14px;
+            color: #555;
+            font-weight: 500;
+            margin-right: 10px;
+        }
+        
+        .pagination-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        /* Ensure pagination is responsive */
+        @media (max-width: 768px) {
+            .pagination-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .pagination {
+                margin-top: 10px;
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -559,7 +630,7 @@
                 
                 // Handle Enter key to search immediately
                 searchInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
+                if (e.key === 'Enter') {
                         myFunction(); // Search immediately on Enter
                     }
                 });
@@ -569,9 +640,9 @@
                     if (e.key === 'Escape') {
                         searchInput.value = '';
                         resetTableHighlighting();
-                        loadSubmissions(1);
-                    }
-                });
+                loadSubmissions(1);
+                }
+            });
             }
             
             // Add search button click handler
@@ -597,22 +668,13 @@
                 loadSubmissions(1);
             });
             
-            // Enhanced items per page change handler
+            // Add event listener for items per page dropdown
             const itemsPerPageSelect = document.getElementById('itemsPerPage');
             if (itemsPerPageSelect) {
                 itemsPerPageSelect.addEventListener('change', function() {
-                    console.log("Items per page changed to: " + this.value);
-                    
-                    // Check if we have an active search
-                    const searchTerm = document.getElementById('myInput')?.value.trim() || '';
-                    
-                    if (searchTerm && searchTerm.length >= 2) {
-                        // If we're searching, reload the search with the new items per page
-                        loadSubmissionsWithFullSearch(searchTerm);
-                    } else {
-                        // Otherwise just reload normally
-                        loadSubmissions(1);
-                    }
+                    console.log(`Items per page changed to: ${this.value}`);
+                    // Reset to page 1 when changing items per page
+                    loadSubmissions(1);
                 });
             }
             
@@ -714,8 +776,9 @@
                 });
             }
         }
-
+        
         async function loadSubmissions(page = 1) {
+            console.log(`loadSubmissions called with page ${page}`);
             const tableBody = document.getElementById('submissionsTableBody');
             const paginationContainer = document.getElementById('pagination');
             
@@ -724,6 +787,7 @@
             
             // If there's a search term and it's long enough, use the search function
             if (searchTerm && searchTerm.length >= 2) {
+                console.log(`Search term detected, calling loadSubmissionsWithFullSearch with page ${page}`);
                 loadSubmissionsWithFullSearch(searchTerm, page);
                 return;
             }
@@ -734,7 +798,7 @@
                     <td colspan="10" class="text-center">
                         <div class="loading-container">
                             <div class="loading-spinner"></div>
-                            <p>Loading submissions...</p>
+                            <p>Loading submissions... (Page ${page})</p>
                         </div>
                     </td>
                 </tr>
@@ -753,6 +817,10 @@
                 const limit = itemsPerPageSelect ? parseInt(itemsPerPageSelect.value || '10') : 10;
                 const sortOrder = sortOrderSelect ? sortOrderSelect.value : 'recent';
                 
+                // Store current page in localStorage for persistence
+                localStorage.setItem('currentPage', page);
+                localStorage.setItem('itemsPerPage', limit);
+                
                 // Build the request parameters
                 const params = new URLSearchParams();
                 params.append('page', page);
@@ -765,7 +833,7 @@
                     params.append('status', status);
                 }
                 
-                console.log(`Loading submissions with sort: ${sortOrder}`);
+                console.log(`Loading submissions with params: ${params.toString()}`);
                 
                 // Make the API request
                 const data = await window.AdminAuth.apiRequest(`/submissions/all?${params.toString()}`);
@@ -781,20 +849,27 @@
                 if (data.data && data.data.submissions) {
                     submissions = data.data.submissions;
                     pagination = data.data.pagination || { 
-                        total: submissions.length, 
-                        page, 
+                        total: data.data.totalCount || submissions.length, 
+                        page: parseInt(page), 
                         limit, 
-                        pages: Math.ceil(submissions.length / limit) 
+                        pages: Math.ceil((data.data.totalCount || submissions.length) / limit) 
                     };
                 } else {
                     submissions = data.submissions || [];
                     pagination = data.pagination || { 
                         total: data.totalCount || submissions.length, 
-                        page, 
+                        page: parseInt(page), 
                         limit, 
-                        pages: data.totalPages || Math.ceil(submissions.length / limit)
+                        pages: data.totalPages || Math.ceil((data.totalCount || submissions.length) / limit)
                     };
                 }
+                
+                // Ensure we have valid pagination data
+                if (!pagination.pages || pagination.pages < 1) {
+                    pagination.pages = Math.ceil(pagination.total / pagination.limit) || 1;
+                }
+                
+                console.log(`Loaded ${submissions.length} submissions, pagination:`, pagination);
                 
                 // Enhanced client-side sorting to ensure date/time sorting works correctly
                 if (sortOrder === 'recent' || sortOrder === 'oldest') {
@@ -817,14 +892,6 @@
                     });
                     
                     console.log(`Sorted submissions by date: ${sortOrder}`);
-                    
-                    // Log the first few sorted dates for debugging
-                    if (submissions.length > 0) {
-                        console.log("Date order check:");
-                        for (let i = 0; i < Math.min(5, submissions.length); i++) {
-                            console.log(`${i+1}: ${new Date(submissions[i].createdAt).toLocaleString()}`);
-                        }
-                    }
                 }
                 
                 // Store all submissions in the global variable for client-side searching
@@ -834,11 +901,6 @@
                 
                 // Render submissions to the table
                 renderSubmissions(submissions, pagination);
-                
-                // Apply search filter if there's already a search term in the box
-                if (searchTerm) {
-                    myFunction();
-                }
                 
             } catch (error) {
                 console.error('Error loading submissions:', error);
@@ -883,42 +945,42 @@
                         </td>
                     </tr>
                 `;
+                
+                // Update the total displayed count
+                const totalCountElement = document.querySelector('.items-count');
+                if (totalCountElement) {
+                    totalCountElement.textContent = `Showing 0 of 0 submissions`;
+                }
+                
+                // Render empty pagination
+                renderPagination({
+                    total: 0,
+                    page: 1,
+                    limit: 10,
+                    pages: 0
+                });
+                
                 return;
             }
             
-            // If we have search input, sort results to prioritize exact matches
-            const searchTerm = document.getElementById('myInput')?.value.trim().toLowerCase() || '';
-            
-            if (searchTerm) {
-                submissions.sort((a, b) => {
-                    // Check for exact matches in name field to prioritize
-                    const aNameMatch = a.name && a.name.toLowerCase().includes(searchTerm);
-                    const bNameMatch = b.name && b.name.toLowerCase().includes(searchTerm);
-                    
-                    if (aNameMatch && !bNameMatch) return -1;
-                    if (!aNameMatch && bNameMatch) return 1;
-                    
-                    // Secondary sort by date/time if both match or don't match
-                    return new Date(b.createdAt) - new Date(a.createdAt);
-                });
-            }
-            
-            // Properly paginate the results
             const { page, limit, total } = pagination;
             const startIndex = (page - 1) * limit;
-            const endIndex = Math.min(startIndex + limit, total);
-            
-            // Get only the submissions for the current page
-            const paginatedSubmissions = submissions.slice(startIndex, endIndex);
+            const endIndex = Math.min(startIndex + limit, submissions.length);
             
             // Update the total displayed count
             const totalCountElement = document.querySelector('.items-count');
             if (totalCountElement) {
-                totalCountElement.textContent = `Showing ${paginatedSubmissions.length} of ${total} submissions`;
+                // If we're showing all submissions or a subset due to search
+                if (submissions.length === total) {
+                    totalCountElement.textContent = `Showing ${submissions.length} of ${total} submissions`;
+                } else {
+                    // If we're showing a page of a larger result set
+                    totalCountElement.textContent = `Showing ${startIndex + 1}-${endIndex} of ${total} submissions`;
+                }
             }
             
             // Render each submission
-            paginatedSubmissions.forEach((submission, index) => {
+            submissions.forEach((submission, index) => {
                 const row = document.createElement('tr');
                 
                 // Format date and time
@@ -965,15 +1027,15 @@
                         <span class="type-badge ${typeBadgeClass}">${submission.type}</span>
                     </td>
                     <td>
-                        <span class="status-badge ${statusClass}" data-status="${statusDataAttr}">${statusLabel}</span>
+                        <span class="status-badge ${statusClass}" data-status="${statusDataAttr}" data-id="${submission.id}" data-type="${submission.type}">${statusLabel}</span>
                     </td>
                     <td>${formattedDate}</td>
                     <td>${formattedTime}</td>
                     <td>
                         <div class="action-buttons">
-                            <button type="button" class="action-button view" title="View Details" data-id="${submission.id}" data-type="${submission.type}">
+                            <a href="view.html?id=${submission.id}&type=${submission.type}" class="action-button view" title="View Details" data-id="${submission.id}" data-type="${submission.type}">
                                 <i class='bx bx-show'></i>
-                            </button>
+                            </a>
                             <button type="button" class="action-button delete" title="Delete" data-id="${submission.id}" data-type="${submission.type}">
                                 <i class='bx bx-trash'></i>
                             </button>
@@ -1030,7 +1092,7 @@
                 });
             });
             
-            // Status badge click handlers (existing code from before)
+            // Status badge click handlers
             document.querySelectorAll('.status-badge').forEach(badge => {
                 badge.addEventListener('click', async function(e) {
                     e.preventDefault();
@@ -1107,8 +1169,18 @@
         }
         
         function renderPagination(pagination) {
+            console.log("Rendering pagination with:", pagination);
             const paginationContainer = document.getElementById('pagination');
-            const { page, pages } = pagination;
+            if (!paginationContainer) return;
+            
+            // Get current page and total pages from pagination
+            const { page, pages, total, limit } = pagination;
+            
+            // If there is only 1 page or no pages, don't show pagination
+            if (pages <= 1) {
+                paginationContainer.innerHTML = '';
+                return;
+            }
             
             // Calculate range of pages to show
             let startPage = Math.max(1, page - 2);
@@ -1123,18 +1195,18 @@
                 }
             }
             
-            let paginationHTML = '';
-            
             // Check if we're in search mode
             const searchTerm = document.getElementById('myInput')?.value.trim() || '';
             const isSearchMode = searchTerm.length >= 2;
             
+            console.log(`Pagination: Current page: ${page}, Total pages: ${pages}, Items per page: ${limit}, Total items: ${total}, Search mode: ${isSearchMode}`);
+            
+            let paginationHTML = '';
+            
             // Previous button
             paginationHTML += `
-                <button class="pagination-button ${page === 1 ? 'disabled' : ''}" 
-                        ${page === 1 ? 'disabled' : isSearchMode ? 
-                        `onclick="searchNavigate(${page - 1})"` : 
-                        `onclick="loadSubmissions(${page - 1})"`}>
+                <button class="pagination-button prev-button ${page <= 1 ? 'disabled' : ''}" 
+                        ${page <= 1 ? 'disabled' : ''} data-page="${Math.max(1, page - 1)}">
                     <i class='bx bx-chevron-left'></i>
                 </button>
             `;
@@ -1142,10 +1214,8 @@
             // First page and ellipsis if needed
             if (startPage > 1) {
                 paginationHTML += `
-                    <button class="pagination-button" ${isSearchMode ? 
-                        `onclick="searchNavigate(1)"` : 
-                        `onclick="loadSubmissions(1)"`}>1</button>
-                    ${startPage > 2 ? '<span>...</span>' : ''}
+                    <button class="pagination-button" data-page="1">1</button>
+                    ${startPage > 2 ? '<span class="pagination-ellipsis">...</span>' : ''}
                 `;
             }
             
@@ -1153,9 +1223,7 @@
             for (let i = startPage; i <= endPage; i++) {
                 paginationHTML += `
                     <button class="pagination-button ${i === page ? 'active' : ''}" 
-                            ${isSearchMode ? 
-                            `onclick="searchNavigate(${i})"` : 
-                            `onclick="loadSubmissions(${i})"` }>
+                            data-page="${i}">
                         ${i}
                     </button>
                 `;
@@ -1164,30 +1232,56 @@
             // Last page and ellipsis if needed
             if (endPage < pages) {
                 paginationHTML += `
-                    ${endPage < pages - 1 ? '<span>...</span>' : ''}
-                    <button class="pagination-button" ${isSearchMode ? 
-                        `onclick="searchNavigate(${pages})"` : 
-                        `onclick="loadSubmissions(${pages})"` }>${pages}</button>
+                    ${endPage < pages - 1 ? '<span class="pagination-ellipsis">...</span>' : ''}
+                    <button class="pagination-button" data-page="${pages}">${pages}</button>
                 `;
             }
             
             // Next button
             paginationHTML += `
-                <button class="pagination-button ${page === pages ? 'disabled' : ''}" 
-                        ${page === pages ? 'disabled' : isSearchMode ? 
-                        `onclick="searchNavigate(${page + 1})"` : 
-                        `onclick="loadSubmissions(${page + 1})"`}>
+                <button class="pagination-button next-button ${page >= pages ? 'disabled' : ''}" 
+                        ${page >= pages ? 'disabled' : ''} data-page="${Math.min(pages, page + 1)}">
                     <i class='bx bx-chevron-right'></i>
                 </button>
             `;
             
             paginationContainer.innerHTML = paginationHTML;
+            
+            // Add direct event listeners to make pagination buttons work
+            setTimeout(() => {
+                const paginationButtons = document.querySelectorAll('.pagination-button:not(.disabled)');
+                paginationButtons.forEach(button => {
+                    // Remove any existing event listeners
+                    const newButton = button.cloneNode(true);
+                    button.parentNode.replaceChild(newButton, button);
+                    
+                    // Get the page number from data attribute
+                    const pageNum = parseInt(newButton.getAttribute('data-page'));
+                    if (isNaN(pageNum)) return;
+                    
+                    // Add event listener to handle click
+                    newButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        console.log(`Pagination button clicked for page ${pageNum}`);
+                        
+                        if (isSearchMode) {
+                            searchNavigate(pageNum);
+                        } else {
+                            loadSubmissions(pageNum);
+                        }
+                    });
+                });
+                
+                console.log("Event listeners added to pagination buttons");
+            }, 0);
         }
         
         function getCurrentPage() {
             // Extract current page from active pagination button
             const activeButton = document.querySelector('.pagination-button.active');
-            return activeButton ? parseInt(activeButton.textContent) : 1;
+            const currentPage = activeButton ? parseInt(activeButton.getAttribute('data-page')) : 1;
+            console.log(`Current page detected: ${currentPage}`);
+            return currentPage;
         }
         
         function exportSubmissions() {
@@ -1417,23 +1511,23 @@
             params.append('sortDetails', 'true');
             
             // Include current filters to refine search but still get all results
-            const typeFilter = document.getElementById('typeFilter');
-            const statusFilter = document.getElementById('statusFilter');
-            const sortOrderSelect = document.getElementById('sortOrder');
-            
-            // Use safe values with defaults
-            const type = typeFilter ? typeFilter.value : 'all';
-            const status = statusFilter ? statusFilter.value : 'all';
-            const sortOrder = sortOrderSelect ? sortOrderSelect.value : 'recent';
-            
+                const typeFilter = document.getElementById('typeFilter');
+                const statusFilter = document.getElementById('statusFilter');
+                const sortOrderSelect = document.getElementById('sortOrder');
+                
+                // Use safe values with defaults
+                const type = typeFilter ? typeFilter.value : 'all';
+                const status = statusFilter ? statusFilter.value : 'all';
+                const sortOrder = sortOrderSelect ? sortOrderSelect.value : 'recent';
+                
             if (type !== 'all') {
                 params.append('type', type);
             }
-            
-            if (status !== 'all') {
-                params.append('status', status);
-            }
-            
+                
+                if (status !== 'all') {
+                    params.append('status', status);
+                }
+                
             params.append('sort', sortOrder);
             
             console.log(`Searching with sort: ${sortOrder}`);
@@ -1531,20 +1625,20 @@
                 })
                 .catch(error => {
                     console.error('Error searching submissions:', error);
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="10" class="text-center">
-                                <div class="empty-state">
-                                    <i class='bx bx-error-circle'></i>
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="text-center">
+                            <div class="empty-state">
+                                <i class='bx bx-error-circle'></i>
                                     <p>Search failed: ${error.message || 'Unknown error'}</p>
                                     <button class="filter-button primary" onclick="loadSubmissions(1)">
                                         <i class='bx bx-refresh'></i>
                                         <span>Try Again</span>
                                     </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
+                            </div>
+                        </td>
+                    </tr>
+                `;
                 });
         }
 
@@ -1739,12 +1833,15 @@
             };
         }
 
-        // Add a function to navigate between pages when in search mode
+        // Update searchNavigate function for better debugging
         function searchNavigate(page) {
+            console.log(`searchNavigate called with page ${page}`);
             const searchTerm = document.getElementById('myInput')?.value.trim() || '';
             if (searchTerm.length >= 2) {
+                console.log(`Searching for "${searchTerm}" on page ${page}`);
                 loadSubmissionsWithFullSearch(searchTerm, page);
             } else {
+                console.log(`No search term, loading regular page ${page}`);
                 loadSubmissions(page);
             }
         }
@@ -1772,192 +1869,10 @@
             }
         }
 
-        // Add function to view a submission
-        async function viewSubmission(id, type) {
-            try {
-                // Show loading overlay
-                const loadingOverlay = document.createElement('div');
-                loadingOverlay.className = 'loading-overlay';
-                loadingOverlay.innerHTML = `
-                    <div class="loading-spinner"></div>
-                    <p>Loading submission details...</p>
-                `;
-                document.body.appendChild(loadingOverlay);
-                
-                // Make API request to get submission details
-                const response = await window.AdminAuth.apiRequest(`/submission/${type}/${id}`);
-                
-                // Remove loading overlay
-                document.body.removeChild(loadingOverlay);
-                
-                if (!response || !response.success) {
-                    throw new Error(response?.message || 'Failed to fetch submission details');
-                }
-                
-                // Extract submission data
-                const submission = response.data || response.submission;
-                
-                if (!submission) {
-                    throw new Error('No submission data returned from the server');
-                }
-                
-                // Mark as read if it's not already
-                if (submission.status !== 'read' && submission.isRead !== true) {
-                    await window.AdminAuth.apiRequest(`/submission/${type}/${id}/read`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    // Update all status badges for this submission
-                    updateAllStatusBadgesForSameId(id, type, 'read');
-                }
-                
-                // Format date and time for display
-                const createdAt = new Date(submission.createdAt);
-                const formattedDate = createdAt.toLocaleDateString();
-                const formattedTime = createdAt.toLocaleTimeString();
-                
-                // Create modal content based on submission type
-                let modalContent = '';
-                
-                // Common fields for all submission types
-                modalContent += `
-                    <div class="submission-detail">
-                        <h4>Basic Information</h4>
-                        <div class="detail-row">
-                            <span class="detail-label">Name:</span>
-                            <span class="detail-value">${submission.name || 'N/A'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Email:</span>
-                            <span class="detail-value">${submission.email || 'N/A'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Phone:</span>
-                            <span class="detail-value">${submission.phone || 'N/A'}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Submission Date:</span>
-                            <span class="detail-value">${formattedDate} at ${formattedTime}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Type:</span>
-                            <span class="detail-value">${submission.type}</span>
-                        </div>
-                    </div>
-                `;
-                
-                // Add type-specific fields
-                if (submission.message) {
-                    modalContent += `
-                        <div class="submission-detail">
-                            <h4>Message</h4>
-                            <div class="detail-message">${submission.message}</div>
-                        </div>
-                    `;
-                }
-                
-                // Add other fields based on submission type
-                if (submission.type === 'flight' || submission.type === 'domestic' || submission.type === 'international') {
-                    modalContent += `
-                        <div class="submission-detail">
-                            <h4>Travel Details</h4>
-                            ${submission.departureDate ? `
-                                <div class="detail-row">
-                                    <span class="detail-label">Departure Date:</span>
-                                    <span class="detail-value">${new Date(submission.departureDate).toLocaleDateString()}</span>
-                                </div>
-                            ` : ''}
-                            ${submission.returnDate ? `
-                                <div class="detail-row">
-                                    <span class="detail-label">Return Date:</span>
-                                    <span class="detail-value">${new Date(submission.returnDate).toLocaleDateString()}</span>
-                                </div>
-                            ` : ''}
-                            ${submission.adults ? `
-                                <div class="detail-row">
-                                    <span class="detail-label">Adults:</span>
-                                    <span class="detail-value">${submission.adults}</span>
-                                </div>
-                            ` : ''}
-                            ${submission.children ? `
-                                <div class="detail-row">
-                                    <span class="detail-label">Children:</span>
-                                    <span class="detail-value">${submission.children}</span>
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
-                }
-                
-                // Display all remaining fields
-                const excludedFields = ['id', '_id', 'name', 'email', 'phone', 'createdAt', 'updatedAt', 'message', 'type', 'status', 'isRead', 'readAt', 'departureDate', 'returnDate', 'adults', 'children'];
-                
-                let additionalFields = '';
-                
-                for (const [key, value] of Object.entries(submission)) {
-                    if (!excludedFields.includes(key) && value !== null && value !== undefined) {
-                        additionalFields += `
-                            <div class="detail-row">
-                                <span class="detail-label">${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}:</span>
-                                <span class="detail-value">${Array.isArray(value) ? value.join(', ') : value}</span>
-                            </div>
-                        `;
-                    }
-                }
-                
-                if (additionalFields) {
-                    modalContent += `
-                        <div class="submission-detail">
-                            <h4>Additional Information</h4>
-                            ${additionalFields}
-                        </div>
-                    `;
-                }
-                
-                // Create modal
-                const modal = document.createElement('div');
-                modal.className = 'custom-modal';
-                modal.innerHTML = `
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3>Submission Details</h3>
-                            <button class="modal-close">&times;</button>
-                        </div>
-                        <div class="modal-body">
-                            ${modalContent}
-                        </div>
-                        <div class="modal-footer">
-                            <button class="action-button primary" id="closeModalBtn">Close</button>
-                        </div>
-                    </div>
-                `;
-                
-                // Add modal to the page
-                document.body.appendChild(modal);
-                
-                // Add event listeners for close buttons
-                modal.querySelector('.modal-close').addEventListener('click', () => {
-                    document.body.removeChild(modal);
-                });
-                
-                modal.querySelector('#closeModalBtn').addEventListener('click', () => {
-                    document.body.removeChild(modal);
-                });
-                
-                // Close modal when clicking outside the content
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) {
-                        document.body.removeChild(modal);
-                    }
-                });
-                
-            } catch (error) {
-                console.error('Error viewing submission:', error);
-                alert(`Failed to view submission: ${error.message}`);
-            }
+        // Replace the viewSubmission function with a simpler navigation version
+        function viewSubmission(id, type) {
+            // Navigate to view.html with id and type as parameters
+            window.location.href = `view.html?id=${id}&type=${type}`;
         }
 
         // Add function to delete a submission

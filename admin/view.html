@@ -561,6 +561,23 @@
         }
         
         function renderSubmissionDetails(submission) {
+            if (!submission) {
+                showDetailError('No submission data available');
+                return;
+            }
+
+            // Fields to exclude from rendering
+            const excludedFields = [
+                '_id', 
+                'id', 
+                'read', 
+                'attachments', 
+                'files', 
+                'ipAddress', 
+                'userAgent', 
+                'updatedAt'
+            ];
+            
             // Set basic details
             document.getElementById('submissionId').textContent = submission.id;
             
@@ -621,12 +638,16 @@
             const dynamicFieldsContainer = document.getElementById('dynamicFields');
             dynamicFieldsContainer.innerHTML = '';
             
-            // Remove ID, type, createdAt, name, email, phone, message (already displayed)
-            const excludedFields = ['id', 'type', 'createdAt', 'name', 'email', 'phone', 'message', 'formType', 'status', 'isRead', '_id', '__v'];
-            
             // Create a field for each remaining property
             for (const [key, value] of Object.entries(submission)) {
                 if (excludedFields.includes(key) || value === undefined || value === null) {
+                    continue;
+                }
+                
+                // Skip any field that contains "ip", "agent", or "updatedAt" in case different naming conventions are used
+                if (key.toLowerCase().includes('ip') || 
+                    key.toLowerCase().includes('agent') || 
+                    key.toLowerCase().includes('updatedat')) {
                     continue;
                 }
                 
@@ -814,10 +835,18 @@
                     csvContent += `Email,${submission.email || 'N/A'}\r\n`;
                     csvContent += `Phone,${submission.phone || 'N/A'}\r\n`;
                     
-                    // Add other fields
+                    // Add other fields, excluding sensitive information
                     for (const [key, value] of Object.entries(submission)) {
-                        if (['id', 'type', 'createdAt', 'name', 'email', 'phone', 'status', 'isRead', '_id', '__v'].includes(key) || 
+                        if (['id', 'type', 'createdAt', 'name', 'email', 'phone', 'status', 'isRead', '_id', '__v', 
+                             'ipAddress', 'userAgent', 'updatedAt', 'ip'].includes(key) || 
                             value === undefined || value === null) {
+                            continue;
+                        }
+                        
+                        // Skip any field that contains "ip", "agent", or "updatedAt" in case different naming conventions are used
+                        if (key.toLowerCase().includes('ip') || 
+                            key.toLowerCase().includes('agent') || 
+                            key.toLowerCase().includes('updatedat')) {
                             continue;
                         }
                         
