@@ -575,7 +575,12 @@
                 'files', 
                 'ipAddress', 
                 'userAgent', 
-                'updatedAt'
+                'updatedAt',
+                'status',        // Added to exclude status field
+                'pending',       // Added to exclude pending field
+                'createdAt',     // Added to exclude createdAt field
+                '__v',           // Added to exclude __v field
+                'v'              // Added to exclude v field if it exists
             ];
             
             // Set basic details
@@ -644,10 +649,14 @@
                     continue;
                 }
                 
-                // Skip any field that contains "ip", "agent", or "updatedAt" in case different naming conventions are used
+                // Skip any field that contains "ip", "agent", "status", "pending", "created", or "updatedat" in case different naming conventions are used
                 if (key.toLowerCase().includes('ip') || 
                     key.toLowerCase().includes('agent') || 
-                    key.toLowerCase().includes('updatedat')) {
+                    key.toLowerCase().includes('updatedat') ||
+                    key.toLowerCase().includes('status') ||
+                    key.toLowerCase().includes('pending') ||
+                    key.toLowerCase().includes('created') ||
+                    key.toLowerCase().includes('__v')) {
                     continue;
                 }
                 
@@ -671,7 +680,10 @@
                 if (typeof value === 'boolean') {
                     valueElement.textContent = value ? 'Yes' : 'No';
                 } else if (value instanceof Date) {
-                    valueElement.textContent = value.toLocaleDateString();
+                    valueElement.textContent = formatDateOnly(value);
+                } else if (typeof value === 'string' && value.includes('T00:00:00.000Z')) {
+                    // Format date strings to remove time component
+                    valueElement.textContent = formatDateOnly(new Date(value));
                 } else if (typeof value === 'object') {
                     valueElement.textContent = JSON.stringify(value);
                 } else {
@@ -685,6 +697,20 @@
             
             // Set up action buttons
             setupActionButtons(submission);
+        }
+        
+        // Helper function to format dates without time component
+        function formatDateOnly(date) {
+            if (!(date instanceof Date) || isNaN(date)) {
+                return 'Invalid Date';
+            }
+            
+            // Format as YYYY-MM-DD
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            
+            return `${year}-${month}-${day}`;
         }
         
         function setupActionButtons(submission) {
