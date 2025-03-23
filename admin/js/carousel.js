@@ -341,10 +341,65 @@ function addEventListeners() {
 
 // Setup drag & drop functionality
 function setupDragDrop() {
-    if (!dragDropArea || !imageUpload) return;
+    if (!dragDropArea) {
+        console.error('Drag & drop area not found');
+        dragDropArea = document.getElementById('dragDropArea');
+        if (!dragDropArea) {
+            console.error('Could not find drag & drop area even with getElementById');
+            return;
+        }
+    }
+    
+    if (!imageUpload) {
+        console.error('Image upload element not found');
+        imageUpload = document.getElementById('imageUpload');
+        if (!imageUpload) {
+            console.error('Could not find image upload element even with getElementById');
+            return;
+        }
+    }
+    
+    console.log('Setting up drag & drop functionality');
     
     // Click to browse files
+    const browseLink = dragDropArea.querySelector('.browse-link');
+    if (browseLink) {
+        // Remove any existing event listeners by cloning and replacing
+        const newBrowseLink = browseLink.cloneNode(true);
+        if (browseLink.parentNode) {
+            browseLink.parentNode.replaceChild(newBrowseLink, browseLink);
+        }
+        
+        newBrowseLink.addEventListener('click', (e) => {
+            console.log('Browse link clicked');
+            e.preventDefault();
+            e.stopPropagation(); // Prevent the dragDropArea click event
+            imageUpload.click();
+        });
+    } else {
+        console.error('Browse link not found in drag & drop area');
+    }
+    
+    // Remove any existing event listeners by cloning and replacing
+    const newDragDropArea = dragDropArea.cloneNode(true);
+    if (dragDropArea.parentNode) {
+        dragDropArea.parentNode.replaceChild(newDragDropArea, dragDropArea);
+    }
+    dragDropArea = newDragDropArea;
+    
+    // Re-add browse link event listener after cloning
+    const newBrowseLink = dragDropArea.querySelector('.browse-link');
+    if (newBrowseLink) {
+        newBrowseLink.addEventListener('click', (e) => {
+            console.log('Browse link clicked');
+            e.preventDefault();
+            e.stopPropagation(); // Prevent the dragDropArea click event
+            imageUpload.click();
+        });
+    }
+    
     dragDropArea.addEventListener('click', () => {
+        console.log('Drag & drop area clicked');
         imageUpload.click();
     });
     
@@ -361,6 +416,7 @@ function setupDragDrop() {
     // Add active class when dragging over
     ['dragenter', 'dragover'].forEach(eventName => {
         dragDropArea.addEventListener(eventName, () => {
+            console.log('File dragged over');
             dragDropArea.classList.add('active');
         }, false);
     });
@@ -368,28 +424,61 @@ function setupDragDrop() {
     // Remove active class when drag leaves
     ['dragleave', 'drop'].forEach(eventName => {
         dragDropArea.addEventListener(eventName, () => {
+            console.log('File drag left or dropped');
             dragDropArea.classList.remove('active');
         }, false);
     });
     
     // Handle dropped files
     dragDropArea.addEventListener('drop', (e) => {
+        console.log('File dropped');
         const files = e.dataTransfer.files;
         if (files.length) {
+            // Update the file input with the dropped file
             imageUpload.files = files;
+            
+            // Show the user that the file was accepted
+            const fileName = files[0]?.name || 'Unknown file';
+            dragDropArea.innerHTML = `
+                <i class='bx bx-check-circle' style="font-size: 2rem; margin-bottom: 10px; color: #28a745;"></i>
+                <p>File selected: ${fileName}</p>
+                <p class="small text-muted">Click here to choose a different file</p>
+            `;
+            
+            // Process the file
             handleImageUpload({ target: { files } });
         }
     }, false);
+    
+    // Make sure the image upload input has its event listener
+    imageUpload.addEventListener('change', handleImageUpload);
+    
+    console.log('Drag & drop setup complete');
 }
 
 // Handle image upload by converting to base64
 function handleImageUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target?.files?.[0];
+    if (!file) {
+        console.error('No file selected');
+        return;
+    }
+    
+    console.log('Handling image upload:', file.name, file.type, `${(file.size / 1024).toFixed(2)} KB`);
+    
+    // Update the drag area to show the selected file
+    if (dragDropArea) {
+        const fileName = file.name;
+        dragDropArea.innerHTML = `
+            <i class='bx bx-check-circle' style="font-size: 2rem; margin-bottom: 10px; color: #28a745;"></i>
+            <p>File selected: ${fileName}</p>
+            <p class="small text-muted">Click here to choose a different file</p>
+        `;
+    }
     
     // Check if file is an image
     if (!file.type.match('image.*')) {
-        showToast('Please select an image file', 'error');
+        showToast('Please select an image file (JPG, PNG, GIF)', 'error');
         return;
     }
     
@@ -399,7 +488,19 @@ function handleImageUpload(e) {
         return;
     }
     
+    // Show loading state in image preview
+    if (imagePreview) {
+        imagePreview.innerHTML = `
+            <div style="text-align: center; color: #6c757d;">
+                <div class="loading-spinner" style="margin: 20px auto;"></div>
+                <p>Processing image...</p>
+            </div>
+        `;
+    }
+    
+    // Convert to base64
     const reader = new FileReader();
+    
     reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
@@ -410,30 +511,120 @@ function handleImageUpload(e) {
                 height: img.height
             };
             
+            console.log('Image loaded with dimensions:', img.width, 'x', img.height);
+            
             // Display image and size controls
             displayImage(e.target.result, img.width, img.height);
             
             // Set image url field
-            document.getElementById('imageUrl').value = e.target.result;
+            const imageUrlInput = document.getElementById('imageUrl');
+            if (imageUrlInput) {
+                imageUrlInput.value = e.target.result;
+                console.log('Image URL set in form');
+            } else {
+                console.error('Image URL input not found');
+            }
+            
+            showToast('Image uploaded successfully', 'success');
         };
+        
+        img.onerror = function() {
+            console.error('Failed to process image');
+            showToast('Failed to process image. Please try another file.', 'error');
+            
+            if (imagePreview) {
+                imagePreview.innerHTML = `
+                    <div style="text-align: center; color: #dc3545;">
+                        <i class='bx bx-error-circle' style="font-size: 3rem;"></i>
+                        <p>Failed to process image</p>
+                    </div>
+                `;
+            }
+        };
+        
         img.src = e.target.result;
     };
+    
+    reader.onerror = function(error) {
+        console.error('Error reading file:', error);
+        showToast('Error reading file. Please try again.', 'error');
+    };
+    
     reader.readAsDataURL(file);
 }
 
 // Display image preview and show size controls
 function displayImage(src, width, height) {
-    if (!imagePreview || !imageSizeControls) return;
+    if (!imagePreview) return;
     
-    // Display image
-    imagePreview.innerHTML = `<img src="${src}" alt="Preview">`;
+    // Default dimensions if not provided
+    const defaultWidth = 800;
+    const defaultHeight = 450;
     
-    // Show image size controls
-    imageSizeControls.style.display = 'block';
+    // Create a new image element
+    const img = new Image();
     
-    // Set width and height inputs
-    document.getElementById('imageWidth').value = width;
-    document.getElementById('imageHeight').value = height;
+    // Set up onload handler
+    img.onload = function() {
+        // Use the loaded image's dimensions if width/height not provided
+        const imgWidth = width || img.width || defaultWidth;
+        const imgHeight = height || img.height || defaultHeight;
+        
+        // Set image preview
+        imagePreview.innerHTML = '';
+        imagePreview.appendChild(img);
+        
+        // Show image size controls if they exist
+        if (imageSizeControls) {
+            imageSizeControls.style.display = 'block';
+        }
+        
+        // Set width and height inputs if they exist
+        const imageWidthInput = document.getElementById('imageWidth');
+        const imageHeightInput = document.getElementById('imageHeight');
+        
+        if (imageWidthInput) {
+            imageWidthInput.value = imgWidth;
+        }
+        
+        if (imageHeightInput) {
+            imageHeightInput.value = imgHeight;
+        }
+        
+        // Update original image data for reset functionality
+        originalImageData = {
+            src: src,
+            width: imgWidth,
+            height: imgHeight
+        };
+        
+        console.log('Image displayed successfully with dimensions:', imgWidth, 'x', imgHeight);
+    };
+    
+    // Set error handler
+    img.onerror = function() {
+        console.error('Failed to load image:', src);
+        
+        // Set fallback image
+        imagePreview.innerHTML = `
+            <div style="text-align: center; color: #dc3545;">
+                <i class='bx bx-image' style="font-size: 3rem;"></i>
+                <p>Failed to load image</p>
+            </div>
+        `;
+        
+        // Hide size controls
+        if (imageSizeControls) {
+            imageSizeControls.style.display = 'none';
+        }
+    };
+    
+    // Set alt and max-height for better display
+    img.alt = 'Preview';
+    img.style.maxHeight = '300px';
+    
+    // Set the source last (this triggers the load)
+    img.src = src;
 }
 
 // Resize the image
@@ -443,8 +634,16 @@ function resizeImage() {
     const img = imagePreview.querySelector('img');
     if (!img) return;
     
-    const width = parseInt(document.getElementById('imageWidth').value);
-    const height = parseInt(document.getElementById('imageHeight').value);
+    const imageWidthInput = document.getElementById('imageWidth');
+    const imageHeightInput = document.getElementById('imageHeight');
+    
+    if (!imageWidthInput || !imageHeightInput) {
+        showToast('Image size controls not found', 'error');
+        return;
+    }
+    
+    const width = parseInt(imageWidthInput.value);
+    const height = parseInt(imageHeightInput.value);
     
     if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
         showToast('Please enter valid dimensions', 'error');
@@ -464,7 +663,11 @@ function resizeImage() {
     
     // Update the preview and form value
     img.src = resizedImage;
-    document.getElementById('imageUrl').value = resizedImage;
+    
+    const imageUrlInput = document.getElementById('imageUrl');
+    if (imageUrlInput) {
+        imageUrlInput.value = resizedImage;
+    }
     
     showToast('Image resized successfully', 'success');
 }
@@ -477,11 +680,22 @@ function resetImage() {
     imagePreview.innerHTML = `<img src="${originalImageData.src}" alt="Preview">`;
     
     // Reset dimension inputs
-    document.getElementById('imageWidth').value = originalImageData.width;
-    document.getElementById('imageHeight').value = originalImageData.height;
+    const imageWidthInput = document.getElementById('imageWidth');
+    const imageHeightInput = document.getElementById('imageHeight');
+    
+    if (imageWidthInput && originalImageData.width) {
+        imageWidthInput.value = originalImageData.width;
+    }
+    
+    if (imageHeightInput && originalImageData.height) {
+        imageHeightInput.value = originalImageData.height;
+    }
     
     // Reset the form value
-    document.getElementById('imageUrl').value = originalImageData.src;
+    const imageUrlInput = document.getElementById('imageUrl');
+    if (imageUrlInput) {
+        imageUrlInput.value = originalImageData.src;
+    }
     
     showToast('Image reset to original size', 'success');
 }
@@ -490,9 +704,19 @@ function resetImage() {
 function showCarouselModal(itemId = null) {
     console.log('Opening carousel modal', itemId ? 'Edit mode' : 'Add mode');
     
+    if (!carouselModal) {
+        console.error('Carousel modal element not found');
+        alert('Error: Could not open modal. Please refresh the page and try again.');
+        return;
+    }
+    
     if (!modalTitle) {
         console.error('Modal title element not found');
-        return;
+        modalTitle = document.querySelector('#carouselModal .modal-header h5');
+        if (!modalTitle) {
+            console.error('Could not find modal title even with querySelector');
+            return;
+        }
     }
     
     modalTitle.textContent = itemId ? 'Edit Carousel Item' : 'Add New Item';
@@ -503,21 +727,44 @@ function showCarouselModal(itemId = null) {
         carouselForm.reset();
     } else {
         console.error('Carousel form not found');
+        carouselForm = document.getElementById('carouselForm');
+        if (!carouselForm) {
+            console.error('Could not find carousel form even with getElementById');
+            return;
+        }
+    }
+    
+    if (!imagePreview) {
+        console.error('Image preview element not found');
+        imagePreview = document.getElementById('imagePreview');
     }
     
     if (imagePreview) {
         imagePreview.innerHTML = '';
-    } else {
-        console.error('Image preview element not found');
+    }
+    
+    if (!imageSizeControls) {
+        console.error('Image size controls not found');
+        imageSizeControls = document.getElementById('imageSizeControls');
     }
     
     if (imageSizeControls) {
         imageSizeControls.style.display = 'none';
-    } else {
-        console.error('Image size controls not found');
     }
     
     originalImageData = null;
+    
+    // Reset the drag-drop area if it exists
+    if (dragDropArea) {
+        dragDropArea.innerHTML = `
+            <i class='bx bx-cloud-upload' style="font-size: 2rem; margin-bottom: 10px;"></i>
+            <p>Drag & drop an image here or <span class="browse-link">browse</span></p>
+            <p class="small text-muted">Max file size: 2MB | Supported formats: JPG, PNG, GIF</p>
+        `;
+    } else {
+        console.error('Drag drop area not found');
+        dragDropArea = document.getElementById('dragDropArea');
+    }
     
     // Check for required form fields
     const titleInput = document.getElementById('title');
@@ -614,7 +861,21 @@ function showCarouselModal(itemId = null) {
         }
     }
     
+    // Ensure event listeners are set up for the browse link
+    setupDragDrop();
+    
+    // Force reflow to ensure CSS transitions work
+    carouselModal.offsetHeight;
+    
     showModal(carouselModal);
+    
+    // Double check modal visibility
+    setTimeout(() => {
+        if (!carouselModal.classList.contains('show')) {
+            console.log('Modal not showing, attempting to fix...');
+            carouselModal.classList.add('show');
+        }
+    }, 100);
 }
 
 // Save carousel item (create or update)
