@@ -138,88 +138,128 @@ function checkAuth() {
 }
 
 /**
- * Make authenticated API requests
- * @param {string} endpoint - API endpoint
- * @param {Object} options - Fetch options
- * @returns {Promise} - Fetch promise
+ * API Request handler for admin panel
+ * Manages authentication and API communication
+ * 
+ * @param {string} endpoint - API endpoint to call
+ * @param {string|object} method - HTTP method (GET, POST, PUT, DELETE) or options object
+ * @param {object} data - Optional data to send with request
+ * @param {object} customHeaders - Optional custom headers
+ * @returns {Promise} - Promise with the API response
  */
-async function apiRequest(endpoint, options = {}) {
-    if (!options.headers) {
-        options.headers = {};
-    }
-    
-    const authHeaders = getAuthHeaders();
-    options.headers = { ...options.headers, ...authHeaders };
-    
-    // Normalize endpoint by ensuring it starts with a slash
-    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    
-    // Construct the full URL correctly handling admin endpoints
-    // If the endpoint already contains '/admin/', don't add it again in the API_URL
-    const baseURL = window.location.origin;
-    // Use the current port instead of hardcoding 7777
-    const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-    const serverURL = `${window.location.protocol}//${window.location.hostname}:${port}`;
-    
-    // Build the complete URL - fix the URL construction to avoid duplicate 'admin'
-    let url;
-    if (normalizedEndpoint.startsWith('/admin/')) {
-        // For admin endpoints, use /api directly without adding 'admin' again
-        url = `${serverURL}${API_URL}${normalizedEndpoint.replace('/admin', '')}`;
-    } else {
-        // For non-admin endpoints, use as is
-        url = `${serverURL}${API_URL}${normalizedEndpoint}`;
-    }
-    
-    console.log(`Making API request to: ${url}`);
-    
+async function apiRequest(endpoint, method = 'GET', data = null, customHeaders = {}) {
     try {
-        const response = await fetch(url, options);
+        // Handle case where method is actually an options object
+        let requestMethod = method;
+        let requestData = data;
+        let requestHeaders = customHeaders;
         
-        // Handle 401 Unauthorized (expired token)
-        if (response.status === 401) {
-            logout();
-            throw new Error('Your session has expired. Please login again.');
+        // Check if second parameter is actually an options object
+        if (typeof method === 'object' && method !== null) {
+            requestMethod = method.method || 'GET';
+            requestData = method.body || null;
+            requestHeaders = method.headers || {};
         }
         
-        // Handle other error statuses
-        if (!response.ok) {
-            const contentType = response.headers.get('content-type');
+        // Normalize endpoint (ensure it starts with a slash)
+        if (!endpoint.startsWith('/')) {
+            endpoint = '/' + endpoint;
+        }
+        
+        // Determine if this is an admin endpoint
+        const isAdminEndpoint = endpoint.startsWith('/admin/');
+        
+        // Build URL - for admin endpoints, use direct path without any prefixes
+        let fullUrl;
+        if (isAdminEndpoint) {
+            fullUrl = `${window.location.origin}${endpoint}`;
+        } else {
+            // For API endpoints, use the /api prefix
+            fullUrl = `${window.location.origin}/api${endpoint}`;
+        }
+        
+        // Prepare request options
+        const options = {
+            method: requestMethod,
+            headers: {
+                ...requestHeaders
+            },
+            credentials: 'same-origin'
+        };
+        
+        // Add auth token if available
+        const token = getToken();
+        if (token) {
+            options.headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        // Add content-type and handle data for POST, PUT methods
+        if (requestData) {
+            // Only set Content-Type if not already set and not multipart form data
+            if (!requestHeaders['Content-Type'] && 
+                !requestHeaders['content-type'] && 
+                !(requestData instanceof FormData)) {
+                options.headers['Content-Type'] = 'application/json';
+            }
             
-            if (contentType && contentType.includes('application/json')) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `Request failed with status ${response.status}`);
+            // If it's an image data URL, don't stringify it again
+            if (options.headers['Content-Type'] === 'application/json') {
+                options.body = JSON.stringify(requestData);
             } else {
-                throw new Error(`Request failed with status ${response.status}`);
+                // For FormData or other types
+                options.body = requestData;
             }
         }
         
-        // Check content type to handle JSON vs non-JSON responses
-        const contentType = response.headers.get('content-type');
+        // Make the request
+        const response = await fetch(fullUrl, options);
         
-        if (contentType && contentType.includes('application/json')) {
+        // Handle 401 Unauthorized (redirect to login)
+        if (response.status === 401) {
+            console.warn('Authentication required, redirecting to login');
+            logout();
+            return null;
+        }
+        
+        // Handle other non-OK responses
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorData;
+            
+            try {
+                // Try to parse error as JSON
+                errorData = JSON.parse(errorText);
+            } catch (e) {
+                // If not JSON, use text as message
+                errorData = { message: errorText || `HTTP error ${response.status}` };
+            }
+            
+            // Log the error
+            console.error(`API error (${response.status}):`, errorData);
+            
+            // Throw formatted error object
+            throw {
+                status: response.status,
+                statusText: response.statusText,
+                ...errorData
+            };
+        }
+        
+        // Check if response is empty
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
             // Parse JSON response
             return await response.json();
         } else {
-            // For non-JSON responses
-            const text = await response.text();
-            console.warn('Non-JSON response received:', text.substring(0, 100) + '...');
-            
-            if (text.trim().startsWith('<')) {
-                // HTML response, likely an error
-                throw new Error('Received HTML instead of JSON. The server might be returning an error page.');
-            }
-            
-            // Try to parse as JSON anyway as a fallback
-            try {
-                return text ? JSON.parse(text) : {};
-            } catch (parseError) {
-                console.error('JSON parsing error:', parseError);
-                throw new Error('Received invalid data format from server.');
-            }
+            // Return text for non-JSON responses
+            return await response.text();
         }
+        
     } catch (error) {
+        // Log the error
         console.error('API request error:', error);
+        
+        // Re-throw for handling by caller
         throw error;
     }
 }

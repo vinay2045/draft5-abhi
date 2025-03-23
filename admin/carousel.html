@@ -11,6 +11,57 @@
     <!-- Admin CSS -->
     <link rel="stylesheet" href="css/admin-style.css">
     <style>
+        /* ========= Base Styles ========= */
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 25px;
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            outline: none;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background-color: #4361ee;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        
+        .btn-danger {
+            background-color: #e63946;
+            color: white;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 4px;
+            border: 1px solid #ced4da;
+            font-size: 14px;
+            transition: border-color 0.15s ease-in-out;
+        }
+        
+        /* ========= Image & Upload Styles ========= */
         .image-preview {
             margin-top: 10px;
             max-width: 100%;
@@ -22,12 +73,476 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
 
         .image-preview img {
             max-width: 100%;
             max-height: 300px;
             object-fit: contain;
+        }
+        
+        .image-size-controls {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .image-dimensions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .image-dimensions input {
+            width: 80px;
+        }
+        
+        .table-image {
+            width: 100px;
+            height: 60px;
+            overflow: hidden;
+            border-radius: 4px;
+        }
+        
+        .table-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .image-upload-progress {
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .progress {
+            height: 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        /* ========= Drag & Drop Area ========= */
+        .drag-drop-area {
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .drag-drop-area.active {
+            border-color: #4CAF50;
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+        
+        .drag-drop-area i {
+            font-size: 32px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .drag-drop-area p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        /* ========= Sortable List Styles ========= */
+        .sortable-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .sortable-item {
+            display: flex;
+            align-items: center;
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            padding: 10px;
+            transition: all 0.2s ease;
+        }
+        
+        .sortable-item:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sortable-item .handle {
+            cursor: grab;
+            margin-right: 15px;
+            color: #555;
+        }
+        
+        .sortable-item .handle i {
+            font-size: 24px;
+        }
+        
+        .sortable-item .item-image {
+            width: 80px;
+            height: 50px;
+            margin-right: 15px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .sortable-item .item-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .sortable-item .item-info {
+            flex: 1;
+        }
+        
+        .sortable-item .item-info h5 {
+            margin: 0 0 5px;
+            font-size: 14px;
+        }
+        
+        .sortable-item .item-info p {
+            margin: 0;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .sortable-item .item-status {
+            margin-left: 10px;
+        }
+        
+        .sortable-ghost {
+            opacity: 0.5;
+            background: #e9f7ef;
+        }
+        
+        .dragging {
+            opacity: 0.5;
+            background: #e9f7ef;
+        }
+        
+        .empty-message {
+            padding: 20px;
+            text-align: center;
+            color: #666;
+        }
+        
+        /* ========= Modal Styles ========= */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+        }
+        
+        .modal.show {
+            display: block;
+        }
+        
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+        }
+        
+        .modal-content {
+            position: relative;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            margin: 80px auto;
+            max-width: 600px;
+            width: 90%;
+            z-index: 1002;
+            overflow: hidden;
+        }
+        
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .modal-header h5 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+        }
+        
+        .modal-body {
+            padding: 20px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+        
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 15px 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        /* Confirmation Modal specific */
+        #confirmModal .modal-content {
+            max-width: 400px;
+        }
+        
+        #confirmModal .modal-body {
+            padding: 25px 20px;
+        }
+        
+        #confirmModal .modal-body p {
+            margin: 0;
+            text-align: center;
+            color: #333;
+        }
+        
+        /* ========= Toast Notification Styles ========= */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        
+        .toast {
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            margin-top: 10px;
+            width: 300px;
+            max-width: 100%;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .toast-success {
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .toast-error {
+            border-left: 4px solid #F44336;
+        }
+        
+        .toast-warning {
+            border-left: 4px solid #FFC107;
+        }
+        
+        .toast-info {
+            border-left: 4px solid #2196F3;
+        }
+        
+        .toast-content {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+        }
+        
+        .toast-icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+        
+        .toast-success .toast-icon {
+            color: #4CAF50;
+        }
+        
+        .toast-error .toast-icon {
+            color: #F44336;
+        }
+        
+        .toast-warning .toast-icon {
+            color: #FFC107;
+        }
+        
+        .toast-info .toast-icon {
+            color: #2196F3;
+        }
+        
+        .toast-message {
+            flex: 1;
+            font-size: 14px;
+        }
+        
+        .toast-progress {
+            height: 4px;
+            background-color: #f1f1f1;
+        }
+        
+        .toast-progress-bar {
+            height: 100%;
+            width: 0%;
+            transition: width 3s linear;
+        }
+        
+        .toast-success .toast-progress-bar {
+            background-color: #4CAF50;
+        }
+        
+        .toast-error .toast-progress-bar {
+            background-color: #F44336;
+        }
+        
+        .toast-warning .toast-progress-bar {
+            background-color: #FFC107;
+        }
+        
+        .toast-info .toast-progress-bar {
+            background-color: #2196F3;
+        }
+        
+        /* ========= Table Styles ========= */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th, 
+        .table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .table th {
+            font-weight: 600;
+            color: #495057;
+            background-color: #f8f9fa;
+        }
+        
+        .table tbody tr:hover {
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .action-buttons .btn {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            font-size: 16px;
+        }
+        
+        /* ========= Form Styles ========= */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .form-control:focus {
+            border-color: #4361ee;
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+            outline: none;
+        }
+        
+        .form-check {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .form-check-input {
+            margin-right: 8px;
+        }
+        
+        /* ========= Responsive Adjustments ========= */
+        @media (max-width: 768px) {
+            .image-size-controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .action-buttons {
+                flex-wrap: wrap;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 50px auto;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .table-responsive {
+                overflow-x: auto;
+            }
+            
+            .sortable-item {
+                flex-wrap: wrap;
+            }
+            
+            .sortable-item .item-image {
+                margin-bottom: 10px;
+            }
+        }
+        
+        /* Badge styles */
+        .badge {
+            display: inline-flex;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        .bg-success {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .bg-secondary {
+            background-color: #6c757d;
+            color: white;
         }
     </style>
 </head>
@@ -175,7 +690,7 @@
                             <span>Add New Item</span>
                         </button>
                     </div>
-                    <p>Manage homepage carousel slides</p>
+                    <p>Manage homepage carousel slides. Changes will be immediately visible to users.</p>
                 </div>
                 
                 <!-- Carousel Items Table -->
@@ -190,7 +705,7 @@
                                         <th>Title</th>
                                         <th>Heading</th>
                                         <th style="width: 100px;">Status</th>
-                                        <th style="width: 150px;">Actions</th>
+                                        <th style="width: 180px;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -204,6 +719,14 @@
                             </table>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="action-buttons mt-3">
+                    <button type="button" class="btn btn-secondary" id="reorderBtn">
+                        <i class='bx bx-sort'></i>
+                        <span>Reorder Items</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -239,16 +762,42 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="imageUrl">Image URL*</label>
-                        <input type="text" id="imageUrl" class="form-control" placeholder="URL or path to image" required>
-                        <small class="form-text">Enter a URL or upload an image</small>
+                        <label for="imageUpload">Upload Image*</label>
+                        <div class="drag-drop-area" id="dragDropArea">
+                            <i class='bx bx-cloud-upload'></i>
+                            <p>Drag & drop image here or click to browse</p>
+                            <p class="small">Recommended size: 1920x1080px</p>
+                        </div>
+                        <input type="file" id="imageUpload" class="form-control-file" accept="image/*" style="display: none;">
+                        <div class="image-upload-progress">
+                            <div class="progress">
+                                <div class="progress-bar" id="uploadProgressBar"></div>
+                            </div>
+                            <small class="progress-text" id="uploadProgressText">0%</small>
+                        </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="imageUpload">Or Upload Image</label>
-                        <input type="file" id="imageUpload" class="form-control-file" accept="image/*">
-                        <div class="image-preview mt-2" id="imagePreview"></div>
+                    <div class="image-preview mt-2" id="imagePreview"></div>
+                    
+                    <div class="image-size-controls" id="imageSizeControls" style="display: none;">
+                        <div class="form-group">
+                            <label>Resize Image</label>
+                            <div class="image-dimensions">
+                                <input type="number" id="imageWidth" class="form-control" placeholder="Width">
+                                <span>×</span>
+                                <input type="number" id="imageHeight" class="form-control" placeholder="Height">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="resizeImageBtn">
+                                    Resize
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="resetImageBtn">
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
                     </div>
+                    
+                    <input type="hidden" id="imageUrl" name="imageUrl">
+                    <input type="hidden" id="originalImageUrl" name="originalImageUrl">
                     
                     <div class="form-group">
                         <label for="tags">Tags (comma separated)</label>
@@ -273,6 +822,29 @@
         </div>
     </div>
     
+    <!-- Reorder Modal -->
+    <div class="modal" id="reorderModal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5>Reorder Carousel Items</h5>
+                <button type="button" class="close-modal">
+                    <i class='bx bx-x'></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Drag and drop items to change their display order.</p>
+                <ul class="sortable-list" id="sortableItems">
+                    <!-- Items will be added here dynamically -->
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary close-modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveOrderBtn">Save Order</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Confirmation Modal -->
     <div class="modal" id="confirmModal">
         <div class="modal-backdrop"></div>
@@ -292,52 +864,22 @@
             </div>
         </div>
     </div>
+    
+    <!-- Toast Notification -->
+    <div class="toast-container">
+        <div class="toast" id="toast">
+            <div class="toast-content">
+                <i class='bx bx-check-circle toast-icon'></i>
+                <div class="toast-message" id="toastMessage"></div>
+            </div>
+            <div class="toast-progress">
+                <div class="toast-progress-bar"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Scripts -->
     <script src="js/auth.js"></script>
     <script src="js/carousel.js"></script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize image preview
-        const imageUpload = document.getElementById('imageUpload');
-        const imagePreview = document.getElementById('imagePreview');
-        const imageUrlInput = document.getElementById('imageUrl');
-        
-        if (imageUpload && imagePreview) {
-            imageUpload.addEventListener('change', function(e) {
-                if (this.files && this.files[0]) {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        imagePreview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
-                        
-                        // Set the data URL to the imageUrl field
-                        if (imageUrlInput) {
-                            imageUrlInput.value = e.target.result;
-                        }
-                    }
-                    
-                    reader.readAsDataURL(this.files[0]);
-                }
-            });
-        }
-        
-        // Initialize previews for existing images
-        if (imageUrlInput && imagePreview) {
-            imageUrlInput.addEventListener('input', function() {
-                if (this.value) {
-                    imagePreview.innerHTML = `<img src="${this.value}" alt="Preview" onerror="this.src='./img/placeholder.jpg'; this.onerror=null;">`;
-                } else {
-                    imagePreview.innerHTML = '';
-                }
-            });
-            
-            // Initialize on page load
-            if (imageUrlInput.value) {
-                imagePreview.innerHTML = `<img src="${imageUrlInput.value}" alt="Preview" onerror="this.src='./img/placeholder.jpg'; this.onerror=null;">`;
-            }
-        }
-    });
-    </script>
 </body>
 </html> 

@@ -135,7 +135,7 @@ async function fetchDashboardStats() {
         });
         
         // Fetch stats from API
-        const stats = await window.AdminAuth.apiRequest('/admin/stats');
+        const stats = await window.AdminAuth.apiRequest('/stats');
         
         // Update UI with stats
         if (stats) {
@@ -205,7 +205,7 @@ async function fetchRecentSubmissions() {
         `;
         
         // Fetch recent submissions
-        const response = await window.AdminAuth.apiRequest('/admin/recent-submissions');
+        const response = await window.AdminAuth.apiRequest('/recent-submissions');
         const submissions = response.submissions || [];
         
         // If no submissions
@@ -289,7 +289,7 @@ async function fetchRecentSubmissions() {
                     
                     try {
                         // Call the delete API endpoint
-                        const response = await window.AdminAuth.apiRequest(`/admin/submission/${type}/${id}`, {
+                        const response = await window.AdminAuth.apiRequest(`/submission/${type}/${id}`, {
                             method: 'DELETE'
                         });
                         

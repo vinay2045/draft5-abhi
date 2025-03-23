@@ -531,7 +531,7 @@
                 
                 // If we have both ID and type, use the type-specific endpoint
                 if (submissionType) {
-                    response = await window.AdminAuth.apiRequest(`/admin/submission/${submissionType}/${submissionId}`);
+                    response = await window.AdminAuth.apiRequest(`/submission/${submissionType}/${submissionId}`);
                     if (!response || !response.data) {
                         throw new Error('Submission not found');
                     }
@@ -540,7 +540,7 @@
                     submission.type = submission.type || submissionType;
                 } else {
                     // If no type provided, use the new endpoint that can determine type by ID
-                    response = await window.AdminAuth.apiRequest(`/admin/submissions/${submissionId}`);
+                    response = await window.AdminAuth.apiRequest(`/submissions/${submissionId}`);
                     if (!response || !response.submission) {
                         throw new Error('Submission not found');
                     }
@@ -919,7 +919,7 @@
                             
                             // Delete the submission
                             const type = submission.type || 'unknown';
-                            const response = await window.AdminAuth.apiRequest(`/admin/submission/${type}/${submission.id}`, {
+                            const response = await window.AdminAuth.apiRequest(`/submission/${type}/${submission.id}`, {
                                 method: 'DELETE'
                             });
                             

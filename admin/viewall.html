@@ -1188,35 +1188,35 @@
                         : `/submission/${type}/${id}/unread`;
                         
                     try {
-                        const response = await window.AdminAuth.apiRequest(endpoint, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            }
-                        });
+                    const response = await window.AdminAuth.apiRequest(
+                        endpoint, 
+                        'POST',
+                        {}, // Empty data object
+                        { 'Content-Type': 'application/json' }
+                    );
+
+                    // If successful, update the UI
+                    if (response && response.success) {
+                        // Update the element immediately without requiring a reload
+                        statusBadge.textContent = newStatus === 'read' ? 'Read' : 'New';
+                        statusBadge.className = `status-badge ${newStatus}`;
                         
-                        // If successful, update the UI
-                        if (response && response.success) {
-                            // Update the element immediately without requiring a reload
-                            statusBadge.textContent = newStatus === 'read' ? 'Read' : 'New';
-                            statusBadge.className = `status-badge ${newStatus}`;
-                            
-                            // Update the data attribute for future toggles
-                            statusBadge.setAttribute('data-status', newStatus);
-                            
-                            console.log(`Successfully updated status to ${newStatus}`);
-                            
-                            // Update all references to this submission in the table
+                        // Update the data attribute for future toggles
+                        statusBadge.setAttribute('data-status', newStatus);
+                        
+                        console.log(`Successfully updated status to ${newStatus}`);
+                        
+                        // Update all references to this submission in the table
                             updateAllStatusBadgesForSameId(id, type, newStatus);
-                        } else {
-                            // Revert the visual change if the API call failed
-                            console.error('Failed to update status:', response);
-                            alert('Failed to update status. Please try again.');
-                        }
+                    } else {
+                        // Revert the visual change if the API call failed
+                        console.error('Failed to update status:', response);
+                        alert('Failed to update status. Please try again.');
+                    }
                     } catch (error) {
                         console.error('Error updating status:', error);
                         alert('An error occurred while updating the status. Please try again.');
-                    }
+                }
                 });
             });
         }
@@ -1455,9 +1455,10 @@
                 
                 try {
                     // Call API to delete
-                    const response = await window.AdminAuth.apiRequest(`/submission/${type}/${id}`, {
-                        method: 'DELETE'
-                    });
+                    const response = await window.AdminAuth.apiRequest(
+                        `/submission/${type}/${id}`, 
+                        'DELETE'
+                    );
                     
                     if (response && response.success) {
                         successCount++;
@@ -1511,12 +1512,12 @@
                 
                 try {
                     // Call API to update status
-                    const response = await window.AdminAuth.apiRequest(`/submission/${type}/${id}/read`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    const response = await window.AdminAuth.apiRequest(
+                        `/submission/${type}/${id}/read`, 
+                        'POST',
+                        {}, // Empty data object
+                        { 'Content-Type': 'application/json' }
+                    );
                     
                     if (response && response.success) {
                         successCount++;
@@ -1639,20 +1640,20 @@
                     
                     // If no results found
                     if (submissions.length === 0) {
-                        tableBody.innerHTML = `
-                            <tr>
-                                <td colspan="10" class="text-center">
-                                    <div class="empty-state">
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="10" class="text-center">
+                            <div class="empty-state">
                                         <i class='bx bx-search-alt'></i>
                                         <p>No submissions found matching "${searchTerm}"</p>
                                         <button class="filter-button secondary" onclick="document.getElementById('myInput').value=''; loadSubmissions(1);">
                                             <i class='bx bx-x'></i>
                                             <span>Clear Search</span>
                                         </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        `;
+                            </div>
+                        </td>
+                    </tr>
+                `;
                         
                         // Clear pagination
                         const paginationContainer = document.getElementById('pagination');
@@ -1904,7 +1905,7 @@
             if (searchTerm.length >= 2) {
                 console.log(`Searching for "${searchTerm}" on page ${page}`);
                 loadSubmissionsWithFullSearch(searchTerm, page);
-            } else {
+                    } else {
                 console.log(`No search term, loading regular page ${page}`);
                 loadSubmissions(page);
             }
@@ -1952,9 +1953,10 @@
                 document.body.appendChild(loadingOverlay);
                 
                 // Make API request to delete submission
-                const response = await window.AdminAuth.apiRequest(`/submission/${type}/${id}`, {
-                    method: 'DELETE'
-                });
+                const response = await window.AdminAuth.apiRequest(
+                    `/submission/${type}/${id}`,
+                    'DELETE'
+                );
                 
                 // Remove loading overlay
                 document.body.removeChild(loadingOverlay);

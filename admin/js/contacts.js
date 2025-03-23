@@ -241,7 +241,7 @@ async function loadContactSubmissions() {
         `;
         
         // Fetch submissions from API
-        const response = await window.AdminAuth.apiRequest('/admin/submissions/contact');
+        const response = await window.AdminAuth.apiRequest('/submissions/contact');
         allSubmissions = response.submissions || [];
         
         // Initialize filtered submissions with all submissions
@@ -482,7 +482,7 @@ async function viewSubmissionDetails(submissionId) {
         modal.classList.add('show');
         
         // Fetch submission details
-        const response = await window.AdminAuth.apiRequest(`/admin/submission/contact/${submissionId}`);
+        const response = await window.AdminAuth.apiRequest(`/submission/contact/${submissionId}`);
         const submission = response.submission;
         
         if (!submission) {
@@ -592,7 +592,7 @@ async function updateSubmissionStatus() {
         updateBtn.disabled = true;
         
         // Send update request
-        await window.AdminAuth.apiRequest(`/admin/submission/contact/${selectedSubmissionId}/status`, {
+        await window.AdminAuth.apiRequest(`/submission/contact/${selectedSubmissionId}/status`, {
             method: 'PUT',
             body: JSON.stringify({
                 status,
@@ -642,7 +642,7 @@ async function updateSubmissionStatus() {
 async function deleteSubmission(submissionId) {
     try {
         // Send delete request
-        await window.AdminAuth.apiRequest(`/admin/submission/contact/${submissionId}`, {
+        await window.AdminAuth.apiRequest(`/submission/contact/${submissionId}`, {
             method: 'DELETE'
         });
         

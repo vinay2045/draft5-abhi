@@ -1375,357 +1375,173 @@ const heroSections = {
 function loadCarouselData() {
     console.log("Loading carousel data from API");
     
-    fetch('http://localhost:7777/api/content/carousel')
+    fetch('/api/carousel')
         .then(response => response.json())
         .then(data => {
             console.log("Carousel data received:", data);
             if (data.success && data.data && data.data.length > 0) {
-                // Use the data from API instead of hardcoded data
-                initCarousel(data.data);
+                // Format the data to match the expected structure
+                const carouselItems = data.data.map(item => ({
+                    image: item.image,
+                    title: item.title,
+                    heading: item.heading,
+                    subheading: item.subheading,
+                    tags: item.tags || []
+                }));
+                
+                // Update the carousel with API data
+                updateHeroCarousel(carouselItems);
             } else {
-                // Fallback to hardcoded data if no items in database
-                initCarousel(carouselItems);
+                console.log("No carousel items returned from API, using local data");
+                // Keep using the current carousel setup
             }
         })
         .catch(error => {
             console.error("Error fetching carousel data:", error);
-            // Fallback to hardcoded data on error
-            initCarousel(carouselItems);
+            // Keep using the current carousel setup on error
         });
 }
 
-// Function to load blog cards from the backend API
-function loadBlogCards() {
-    console.log("Loading blog cards from API");
+// Function to update hero carousel with dynamic data
+function updateHeroCarousel(items) {
+    if (!items || items.length === 0) return;
     
-    fetch('http://localhost:7777/api/content/blog')
-        .then(response => response.json())
-        .then(data => {
-            console.log("Blog cards received:", data);
-            if (data.success && data.data && data.data.length > 0) {
-                // Use the data from API instead of hardcoded data
-                initBlogCards(data.data);
-            } else {
-                // Fallback to hardcoded data if no items in database
-                initBlogCards(blogItems || []);
-            }
-        })
-        .catch(error => {
-            console.error("Error fetching blog cards:", error);
-            // Fallback to hardcoded data on error
-            initBlogCards(blogItems || []);
-        });
-}
-
-// Function to load tour cards from the backend API
-function loadTourCards() {
-    console.log("Loading tour cards from API");
+    const carouselTrack = document.getElementById('carouselTrack');
+    const indicatorsContainer = document.getElementById('carouselIndicators');
     
-    fetch('http://localhost:7777/api/content/tour/all')
-        .then(response => {
-            if (!response.ok) {
-                // If the 'all' endpoint doesn't work, fallback to domestic
-                return fetch('http://localhost:7777/api/content/tour/domestic');
-            }
-            return response;
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log("Tour cards received:", data);
-            if (data.success && data.data && data.data.length > 0) {
-                // Use the data from API instead of hardcoded data
-                initTourCards(data.data);
-            } else {
-                // Fallback to hardcoded data if no items in database
-                initTourCards(tourItems || []);
-            }
-        })
-        .catch(error => {
-            console.error("Error fetching tour cards:", error);
-            // Fallback to hardcoded data on error
-            initTourCards(tourItems || []);
-        });
-}
-
-// Function to load honeymoon cards from the backend API
-function loadHoneymoonCards() {
-    console.log("Loading honeymoon cards from API");
+    if (!carouselTrack || !indicatorsContainer) {
+        console.error('Carousel elements not found');
+        return;
+    }
     
-    fetch('http://localhost:7777/api/content/honeymoon')
-        .then(response => response.json())
-        .then(data => {
-            console.log("Honeymoon cards received:", data);
-            if (data.success && data.data && data.data.length > 0) {
-                // Use the data from API instead of hardcoded data
-                initHoneymoonCards(data.data);
-            } else {
-                // Fallback to hardcoded data if no items in database
-                initHoneymoonCards(honeymoonItems || []);
-            }
-        })
-        .catch(error => {
-            console.error("Error fetching honeymoon cards:", error);
-            // Fallback to hardcoded data on error
-            initHoneymoonCards(honeymoonItems || []);
-        });
-}
-
-// Function to load hero sections from the backend API
-function loadHeroSections() {
-    console.log("Loading hero sections from API");
+    // Clear existing content
+    carouselTrack.innerHTML = '';
+    indicatorsContainer.innerHTML = '';
     
-    const currentPage = window.location.pathname.split('/').pop().replace('.html', '') || 'home';
-    
-    fetch(`http://localhost:7777/api/content/hero/${currentPage}`)
-        .then(response => {
-            if (!response.ok) {
-                // If page-specific hero section doesn't exist, try getting all
-                return fetch('http://localhost:7777/api/content/hero');
-            }
-            return response;
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log("Hero sections received:", data);
-            if (data.success) {
-                // Check if we got an array or single item
-                if (Array.isArray(data.data) && data.data.length > 0) {
-                    // Find the hero section for the current page
-                    const pageHero = data.data.find(item => item.page === currentPage) || data.data[0];
-                    initHeroSection(pageHero);
-                } else if (data.data) {
-                    // Handle single hero section
-                    initHeroSection(data.data);
-                } else {
-                    // Fallback to hardcoded data
-                    initHeroSection(heroSections?.[currentPage] || {});
-                }
-            } else {
-                // Fallback to hardcoded data
-                initHeroSection(heroSections?.[currentPage] || {});
-            }
-        })
-        .catch(error => {
-            console.error("Error fetching hero sections:", error);
-            // Fallback to hardcoded data on error
-            initHeroSection(heroSections?.[currentPage] || {});
-        });
-}
-
-// Initialize page content from API when document is ready
-document.addEventListener('DOMContentLoaded', function() {
-    // Load content from the API
-    loadCarouselData();
-    loadBlogCards();
-    loadTourCards();
-    loadHoneymoonCards();
-    loadHeroSections();
-    
-    // Other initialization code...
-});
-
-// Initialize the carousel with the provided items
-function initCarousel(items) {
-    console.log("Initializing carousel with items:", items);
-    
-    const carouselContainer = document.querySelector('.carousel-inner');
-    if (!carouselContainer) return;
-    
-    carouselContainer.innerHTML = '';
-    
+    // Create slides using the data
     items.forEach((item, index) => {
+        // Create a new slide
         const slide = document.createElement('div');
-        slide.className = `carousel-slide ${index === 0 ? 'active' : ''}`;
+        slide.className = 'hero-carousel-slide fade';
+        slide.style.backgroundImage = `url('${item.image}')`;
+        slide.style.display = index === 0 ? 'block' : 'none'; // Show first slide
         
-        // Fix image path if needed
-        let imageSrc = item.image;
-        if (imageSrc.startsWith('../images/')) {
-            imageSrc = imageSrc.replace('../images/', '/images/');
-        }
-        
-        slide.innerHTML = `
-            <div class="carousel-image">
-                <img src="${imageSrc}" alt="${item.title}" onerror="this.src='/frontend/images/img5.avif'">
+        // Create the content structure
+        const content = `
+            <div class="numbertext">${index + 1} / ${items.length}</div>
+            <div class="hero-content">
+               <h1>${item.heading}</h1>
+                <h4>${item.subheading}</h4>
+                <div class="card-content-white-bg">
+                     <div class="card-title">${item.title}</div>
+                   <div class="card-tags"></div>
+                    <div class="read-more">→</div>
             </div>
-            <div class="carousel-content">
-                <h2>${item.heading}</h2>
-                <p>${item.subheading}</p>
-                <div class="title">${item.title}</div>
-                <div class="tags">
-                    ${Array.isArray(item.tags) ? item.tags.map(tag => `<span class="tag">${tag}</span>`).join('') : ''}
                 </div>
-                <div class="carousel-cta">
-                    <a href="#book-now" class="cta-button">
-                        <div class="arrow">→</div>
-                        Book Your Trip Now
-                    </a>
-                </div>
+             <div class="hero-highlight">
+                <h3>Book Your Seats Now</h3>
+                <button class="cta-btn">Book now</button>
             </div>
         `;
         
-        carouselContainer.appendChild(slide);
-    });
-    
-    // Update indicators
-    const indicators = document.querySelector('.carousel-indicators');
-    if (indicators) {
-        indicators.innerHTML = '';
+        slide.innerHTML = content;
         
-        items.forEach((_, index) => {
+        // Add tags
+        const tagsContainer = slide.querySelector('.card-tags');
+        if (item.tags && Array.isArray(item.tags)) {
+            item.tags.forEach(tag => {
+                const tagSpan = document.createElement('span');
+                tagSpan.className = 'tag';
+                tagSpan.textContent = tag;
+                tagsContainer.appendChild(tagSpan);
+            });
+        }
+        
+        // Add the slide to the carousel
+        carouselTrack.appendChild(slide);
+        
+        // Create indicator dot
             const indicator = document.createElement('span');
-            indicator.className = `indicator ${index === 0 ? 'active' : ''}`;
-            indicator.dataset.index = index;
-            indicators.appendChild(indicator);
+        indicator.className = 'hero-carousel-indicator';
+        indicator.dataset.slideIndex = index;
+        if (index === 0) indicator.classList.add('active');
+        indicatorsContainer.appendChild(indicator);
+    });
+    
+    // Reinitialize the carousel behavior
+    initializeCarouselBehavior();
+}
+
+// Function to initialize the carousel behavior
+function initializeCarouselBehavior() {
+    const slides = document.querySelectorAll('.hero-carousel-slide');
+    const indicators = document.querySelectorAll('.hero-carousel-indicator');
+    const prevButton = document.querySelector('.hero-carousel-nav.prev');
+    const nextButton = document.querySelector('.hero-carousel-nav.next');
+    
+    if (!slides.length) return;
+    
+    let slideIndex = 0;
+    let slideInterval = null;
+    
+    // Start automatic slideshow
+    startSlideshow();
+    
+    // Function to show a specific slide
+    function showSlide(n) {
+        // Reset slideIndex if out of bounds
+        if (n >= slides.length) slideIndex = 0;
+        if (n < 0) slideIndex = slides.length - 1;
+        else slideIndex = n;
+        
+        // Hide all slides and remove active class from indicators
+        slides.forEach(slide => slide.style.display = 'none');
+        indicators.forEach(dot => dot.classList.remove('active'));
+        
+        // Show current slide and set active indicator
+        slides[slideIndex].style.display = 'block';
+        indicators[slideIndex].classList.add('active');
+    }
+    
+    // Function to move to next/prev slide
+    function moveSlide(n) {
+        showSlide(slideIndex + n);
+        resetSlideshow();
+    }
+    
+    // Add click events to indicators
+    indicators.forEach((indicator, index) => {
+        indicator.addEventListener('click', () => {
+            showSlide(index);
+            resetSlideshow();
         });
-    }
-    
-    // Reinitialize carousel controls
-    setupCarouselControls();
-}
-
-// Initialize blog cards with the provided items
-function initBlogCards(items) {
-    console.log("Initializing blog cards with items:", items);
-    
-    const blogContainer = document.querySelector('.blog-cards-container');
-    if (!blogContainer) return;
-    
-    blogContainer.innerHTML = '';
-    
-    items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = `blog-card ${item.size || 'small'}`;
-        
-        // Fix image path if needed
-        let imageSrc = item.image;
-        if (imageSrc.startsWith('../images/')) {
-            imageSrc = imageSrc.replace('../images/', '/images/');
-        }
-        
-        card.innerHTML = `
-            <div class="blog-card-img-container">
-                <img src="${imageSrc}" alt="${item.title}" class="blog-card-img" onerror="this.src='/frontend/images/img6.avif'">
-            </div>
-            <div class="blog-card-body">
-                <h3 class="blog-card-title">${item.title}</h3>
-                <p class="blog-card-text">${item.content || ''}</p>
-                <div class="blog-card-tags">
-                    ${Array.isArray(item.tags) ? item.tags.map(tag => `<span class="tag">${tag}</span>`).join('') : ''}
-                </div>
-                <a href="#" class="blog-card-link">Read More</a>
-            </div>
-        `;
-        
-        blogContainer.appendChild(card);
     });
-}
-
-// Initialize tour cards with the provided items
-function initTourCards(items) {
-    console.log("Initializing tour cards with items:", items);
     
-    const tourContainer = document.querySelector('.tour-cards-container');
-    if (!tourContainer) return;
+    // Add click events to prev/next buttons
+    if (prevButton) prevButton.addEventListener('click', () => moveSlide(-1));
+    if (nextButton) nextButton.addEventListener('click', () => moveSlide(1));
     
-    tourContainer.innerHTML = '';
-    
-    items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'tour-card';
+    // Start automatic slideshow
+    function startSlideshow() {
+        // Clear any existing interval first
+        if (slideInterval) clearInterval(slideInterval);
         
-        // Fix image path if needed
-        let imageSrc = item.image;
-        if (imageSrc.startsWith('../images/')) {
-            imageSrc = imageSrc.replace('../images/', '/images/');
-        }
-        
-        card.innerHTML = `
-            <div class="tour-card-img-container">
-                <img src="${imageSrc}" alt="${item.title}" class="tour-card-img" onerror="this.src='/frontend/images/img5.avif'">
-            </div>
-            <div class="tour-card-body">
-                <h3 class="tour-card-title">${item.title}</h3>
-                <p class="tour-card-text">${item.text || ''}</p>
-                <div class="tour-card-meta">
-                    <span class="tour-card-price">${item.price || ''}</span>
-                    <span class="tour-card-duration">${item.duration || ''}</span>
-                </div>
-                <a href="#book-tour" class="tour-card-btn">Book Now</a>
-            </div>
-        `;
-        
-        tourContainer.appendChild(card);
-    });
-}
-
-// Initialize honeymoon cards with the provided items
-function initHoneymoonCards(items) {
-    console.log("Initializing honeymoon cards with items:", items);
-    
-    const honeymoonContainer = document.querySelector('.honeymoon-cards-container');
-    if (!honeymoonContainer) return;
-    
-    honeymoonContainer.innerHTML = '';
-    
-    items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'honeymoon-card';
-        
-        // Fix image path if needed
-        let imageSrc = item.image;
-        if (imageSrc.startsWith('../images/')) {
-            imageSrc = imageSrc.replace('../images/', '/images/');
-        }
-        
-        card.innerHTML = `
-            <img src="${imageSrc}" alt="${item.title}" class="honeymoon-card-img" onerror="this.src='/frontend/images/img17.avif'">
-            <div class="honeymoon-card-body">
-                <h3 class="honeymoon-card-title">${item.title}</h3>
-                <p class="honeymoon-card-text">${item.text || ''}</p>
-                <div class="honeymoon-card-meta">
-                    <span class="honeymoon-card-price">${item.price || ''}</span>
-                    <span class="honeymoon-card-duration"><i class="bx bx-time"></i> ${item.duration || ''}</span>
-                </div>
-                <a href="#book-honeymoon" class="honeymoon-card-btn">Book Now</a>
-            </div>
-        `;
-        
-        honeymoonContainer.appendChild(card);
-    });
-}
-
-// Initialize hero section with the provided data
-function initHeroSection(data) {
-    console.log("Initializing hero section with data:", data);
-    
-    const heroSection = document.querySelector('.hero-section');
-    if (!heroSection) return;
-    
-    // Fix image path if needed
-    let imageSrc = data.image;
-    if (imageSrc && imageSrc.startsWith('../images/')) {
-        imageSrc = imageSrc.replace('../images/', '/images/');
+        // Set new interval
+        slideInterval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                moveSlide(1);
+            }
+        }, 5000); // Change slide every 5 seconds
     }
     
-    // Update background image if available
-    if (imageSrc) {
-        heroSection.style.backgroundImage = `url(${imageSrc})`;
+    // Reset the slideshow timer
+    function resetSlideshow() {
+        if (slideInterval) clearInterval(slideInterval);
+        startSlideshow();
     }
     
-    // Update content if available
-    const heroContent = heroSection.querySelector('.hero-content');
-    if (heroContent) {
-        const heroTitle = heroContent.querySelector('h1');
-        const heroDescription = heroContent.querySelector('p');
-        
-        if (heroTitle && data.title) {
-            heroTitle.textContent = data.title;
-        }
-        
-        if (heroDescription && data.description) {
-            heroDescription.textContent = data.description;
-        }
-    }
+    // Show first slide
+    showSlide(0);
 }
 
 function determineFormType(form) {

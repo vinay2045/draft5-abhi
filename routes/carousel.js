@@ -255,4 +255,69 @@ router.put('/reorder', isAdmin, async (req, res) => {
     }
 });
 
+// @route   POST /api/carousel/upload
+// @desc    Upload an image for carousel item from base64 data
+// @access  Private (Admin only)
+router.post('/upload', isAdmin, async (req, res) => {
+    try {
+        const { imageData } = req.body;
+
+        if (!imageData) {
+            return res.status(400).json({
+                success: false,
+                message: 'No image data provided'
+            });
+        }
+
+        // Validate if it's a base64 image
+        if (!imageData.startsWith('data:image/')) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid image data format'
+            });
+        }
+
+        // Extract image format and data
+        const matches = imageData.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid image data format'
+            });
+        }
+
+        const imageType = matches[1];
+        const base64Data = matches[2];
+        const buffer = Buffer.from(base64Data, 'base64');
+
+        // Create directory if not exists
+        const uploadDir = path.join(__dirname, '../uploads/carousel');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        // Generate unique filename
+        const fileName = `carousel_${Date.now()}.${imageType}`;
+        const filePath = path.join(uploadDir, fileName);
+
+        // Save the file
+        fs.writeFileSync(filePath, buffer);
+
+        // Return the URL to the saved image
+        const fileUrl = `/uploads/carousel/${fileName}`;
+
+        res.json({
+            success: true,
+            message: 'Image uploaded successfully',
+            fileUrl
+        });
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error during image upload'
+        });
+    }
+});
+
 module.exports = router; 

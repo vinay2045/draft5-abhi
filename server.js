@@ -86,7 +86,7 @@ app.use('/admin', express.static(path.join(__dirname, 'admin'), {
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/carousel', require('./routes/carousel'));
+app.use('/api/carousel', require('./server/routes/carouselRoutes'));
 app.use('/api/domestic-tours', require('./routes/domesticTours'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/submissions', require('./routes/submissions'));
